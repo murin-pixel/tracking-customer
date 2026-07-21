@@ -106,20 +106,12 @@ ufw allow 'Nginx Full'
 ufw enable
 ```
 
-### 2. Clone private repository
+### 2. Clone repository
 
-สร้าง SSH key สำหรับ deploy และเพิ่ม public key เป็น Read-only Deploy Key ใน GitHub repository:
-
-```bash
-sudo -u milk ssh-keygen -t ed25519 -f /home/milk/.ssh/id_ed25519 -N ""
-cat /home/milk/.ssh/id_ed25519.pub
-sudo -u milk ssh-keyscan github.com >> /home/milk/.ssh/known_hosts
-```
-
-จากนั้น clone:
+Repository นี้เป็น public จึง clone แบบ read-only ได้โดยไม่ต้องเก็บ GitHub token บน VPS:
 
 ```bash
-sudo -u milk git clone git@github.com:YOUR_GITHUB_ACCOUNT/klean-pod-checker.git \
+sudo -u milk git clone https://github.com/milk275/BEDEE-FULFILMENT.git \
   /opt/klean-pod-checker
 cd /opt/klean-pod-checker
 ```
@@ -269,8 +261,8 @@ node --check klean_pod_checker/download_shopee_report.js
 
 ## Security checklist
 
-- GitHub repository ต้องเป็น private
-- ใช้ GitHub Deploy Key แบบ read-only บน VPS
+- Repository เป็น public จึงต้องตรวจ secret scan ก่อน push ทุกครั้ง
+- ห้าม commit `.env`, SQLite, proof images, reports หรือ Shopee browser profile
 - เปิด firewall เฉพาะ 22, 80 และ 443
 - ใช้ SSH key และปิด password login หลังตรวจว่าสามารถเข้า VPS ได้
 - สำรอง SQLite, proof images และ Shopee profile แบบเข้ารหัส
