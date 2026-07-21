@@ -1,0 +1,21 @@
+[Unit]
+Description=Download and import the Klean&Kare Shopee Sell Report
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=milk
+Group=milk
+WorkingDirectory=/opt/klean-pod-checker
+Environment=NODE_PATH=/opt/klean-pod-checker/node_modules
+Environment=SHOPEE_PROFILE=/home/milk/kleanandkare-shopee/session
+Environment=SHOPEE_REPORT_DIRECTORY=/home/milk/kleanandkare-shopee/sales-reports
+Environment=SHOPEE_WORK_DIRECTORY=/home/milk/kleanandkare-shopee/work-session
+Environment=SHOPEE_REPORT_MANIFEST=/home/milk/kleanandkare-shopee/sales-reports/latest-report-manifest.json
+ExecStart=/usr/bin/node /opt/klean-pod-checker/klean_pod_checker/download_shopee_report.js
+ExecStartPost=/opt/klean-pod-checker/.venv/bin/python -m klean_pod_checker.shopee_sales_sync --database /opt/klean-pod-checker/data/status-cache.sqlite
+TimeoutStartSec=12min
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true

@@ -1,0 +1,19 @@
+[Unit]
+Description=KLEAN&KARE delivery status web report
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=milk
+Group=milk
+WorkingDirectory=/opt/klean-pod-checker
+EnvironmentFile=/opt/klean-pod-checker/.env
+ExecStart=/opt/klean-pod-checker/.venv/bin/gunicorn --workers 2 --threads 2 --timeout 90 --bind 127.0.0.1:8091 --access-logfile - --error-logfile - klean_pod_checker.wsgi:app
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

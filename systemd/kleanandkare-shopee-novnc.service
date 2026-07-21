@@ -1,0 +1,14 @@
+[Unit]
+Description=noVNC for the dedicated Klean&Kare Shopee login browser
+After=network-online.target kleanandkare-shopee-vnc.service
+Wants=network-online.target
+Requires=kleanandkare-shopee-vnc.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/websockify --web=/usr/share/novnc 127.0.0.1:6081 127.0.0.1:5901
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=KLEAN&KARE Skyfrog delivery status checker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=milk
+Group=milk
+WorkingDirectory=/opt/klean-pod-checker
+EnvironmentFile=/opt/klean-pod-checker/.env
+ExecStart=/opt/klean-pod-checker/.venv/bin/klean-pod-checker --skip-final
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true

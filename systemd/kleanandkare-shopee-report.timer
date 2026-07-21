@@ -1,0 +1,11 @@
+[Unit]
+Description=Download Klean&Kare Shopee report hourly from 08:00 to 22:00
+
+[Timer]
+OnCalendar=*-*-* 08..22:05:00
+Persistent=true
+AccuracySec=1min
+Unit=kleanandkare-shopee-report.service
+
+[Install]
+WantedBy=timers.target

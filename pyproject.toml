@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "klean-pod-checker"
+version = "1.0.0"
+description = "Check KLEAN&KARE order delivery statuses from Skyfrog"
+requires-python = ">=3.10"
+dependencies = [
+  "Flask>=3.1,<4",
+  "gunicorn>=23,<24",
+  "requests>=2.32,<3",
+]
+
+[project.scripts]
+klean-pod-checker = "klean_pod_checker.runner:main"
+
+[tool.setuptools.packages.find]
+include = ["klean_pod_checker*"]
+
+[tool.setuptools.package-data]
+klean_pod_checker = ["templates/*.html", "static/*.css", "static/*.js"]

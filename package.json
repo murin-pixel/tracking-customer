@@ -1,0 +1,12 @@
+{
+  "name": "klean-pod-checker-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser dependency for the KLEAN&KARE Shopee report automation",
+  "scripts": {
+    "shopee:download": "node klean_pod_checker/download_shopee_report.js"
+  },
+  "dependencies": {
+    "playwright": "1.61.1"
+  }
+}

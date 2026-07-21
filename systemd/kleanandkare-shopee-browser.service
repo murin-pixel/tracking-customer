@@ -1,0 +1,20 @@
+[Unit]
+Description=Dedicated Klean&Kare Shopee login browser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=milk
+Group=milk
+WorkingDirectory=/opt/klean-pod-checker
+Environment=DISPLAY=:1
+Environment=NODE_PATH=/opt/klean-pod-checker/node_modules
+Environment=SHOPEE_PROFILE=/home/milk/kleanandkare-shopee/session
+ExecStartPre=/usr/bin/mkdir -p /home/milk/kleanandkare-shopee/session
+ExecStart=/opt/klean-pod-checker/scripts/start-shopee-browser.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

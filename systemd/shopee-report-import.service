@@ -1,0 +1,17 @@
+[Unit]
+Description=Import the latest Shopee Sell Report into KLEAN&KARE tracking
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=milk
+Group=milk
+WorkingDirectory=/opt/klean-pod-checker
+EnvironmentFile=/opt/klean-pod-checker/.env
+Environment=SHOPEE_REPORT_DIRECTORY=/home/milk/kleanandkare-shopee/sales-reports
+Environment=SHOPEE_REPORT_GLOB=Order.all.*.xlsx
+ExecStart=/opt/klean-pod-checker/.venv/bin/python -m klean_pod_checker.shopee_sales_sync --database /opt/klean-pod-checker/data/status-cache.sqlite
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true

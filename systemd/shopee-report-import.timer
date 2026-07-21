@@ -1,0 +1,11 @@
+[Unit]
+Description=Import the latest Shopee Sell Report hourly from 08:00 to 22:00
+
+[Timer]
+OnCalendar=*-*-* 08..22:15:00
+Persistent=true
+AccuracySec=1min
+Unit=shopee-report-import.service
+
+[Install]
+WantedBy=timers.target

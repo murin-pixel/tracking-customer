@@ -1,0 +1,16 @@
+[Unit]
+Description=VNC for the dedicated Klean&Kare Shopee login browser
+After=kleanandkare-shopee-browser.service
+Requires=kleanandkare-shopee-browser.service
+
+[Service]
+Type=simple
+User=milk
+Group=milk
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/bin/x11vnc -display :1 -forever -shared -localhost -rfbport 5901 -nopw
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

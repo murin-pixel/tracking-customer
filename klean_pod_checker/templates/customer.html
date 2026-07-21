@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Tracking Center · BeDee</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='customer.css', v='20260720c') }}">
+  <script defer src="{{ url_for('static', filename='customer.js', v='20260721a') }}"></script>
+</head>
+<body>
+  <header class="tracking-header">
+    <a class="bedee-brand" href="{{ url_for('customer_page') }}" aria-label="BeDee Tracking Center">
+      <img src="{{ url_for('static', filename='bedee-logo.png', v='20260717') }}" alt="BeDee Powered by BDMS">
+    </a>
+    <span class="tracking-center-label">Tracking Center</span>
+  </header>
+
+  <main class="tracking-shell">
+    <section class="tracking-intro" aria-labelledby="page-title">
+      <h1 id="page-title">ตรวจสอบสถานะขนส่ง</h1>
+      <p>ใส่เลขพัสดุหรือเลขออเดอร์ แล้วระบบจะแสดงสถานะกลางของเรา โดยไม่ต้องเลือกขนส่ง</p>
+    </section>
+
+    <section class="tracking-search-card" aria-labelledby="tracking-label">
+      <form id="customer-search-form" class="tracking-search-form">
+        <label id="tracking-label" for="customer-order">เลขพัสดุหรือเลขออเดอร์</label>
+        <div class="tracking-search-row">
+          <input id="customer-order" name="order" type="text" maxlength="100" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="เช่น ANBL000005925 หรือ 260608G0EEY23B" required>
+          <button id="customer-search-button" type="submit">ตรวจสอบ</button>
+        </div>
+      </form>
+      <div id="customer-error" class="customer-error hidden" role="alert"></div>
+      <p id="customer-search-status" class="sr-only" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="customer-result" class="tracking-results hidden" aria-live="polite" aria-busy="false">
+      <article class="shipment-card">
+        <header class="shipment-card-header">
+          <h2>สถานะพัสดุของคุณ</h2>
+          <p><strong id="customer-result-order">—</strong><span id="customer-result-separator" aria-hidden="true"> · </span><span id="customer-carrier-inline">—</span></p>
+        </header>
+
+        <div id="customer-not-found" class="customer-empty hidden" role="status">
+          <span class="empty-icon" aria-hidden="true">?</span>
+          <div>
+            <strong>ยังไม่พบข้อมูลพัสดุ</strong>
+            <p>กรุณาตรวจสอบเลขพัสดุแล้วลองค้นหาอีกครั้ง</p>
+          </div>
+        </div>
+
+        <div id="customer-found-content">
+          <div id="customer-exception" class="shipment-warning hidden" role="status"></div>
+
+          <ol id="tracking-progress" class="tracking-progress" aria-label="ขั้นตอนการจัดส่ง">
+            <li data-stage="received">
+              <div class="stage-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64" role="img">
+                  <rect x="17" y="13" width="30" height="38" rx="5"></rect>
+                  <path d="M24 24h16M24 32h12M24 40h8"></path>
+                  <circle class="accent accent-blue" cx="19" cy="15" r="4"></circle>
+                  <circle class="accent accent-coral" cx="27" cy="15" r="4"></circle>
+                  <circle cx="45" cy="46" r="8"></circle>
+                  <path d="M45 42v5l3 2"></path>
+                </svg>
+                <span class="stage-check">✓</span>
+              </div>
+              <span>รับงานแล้ว</span>
+            </li>
+            <li data-stage="in_transit">
+              <div class="stage-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64" role="img">
+                  <path d="M12 22h28v23H12zM40 29h8l7 8v8H40z"></path>
+                  <circle cx="23" cy="47" r="6"></circle>
+                  <circle cx="48" cy="47" r="6"></circle>
+                  <path d="M16 30h20"></path>
+                  <rect class="fill-blue" x="13" y="23" width="10" height="20" rx="2"></rect>
+                  <rect class="fill-coral" x="24" y="23" width="10" height="20" rx="2"></rect>
+                </svg>
+                <span class="stage-check">✓</span>
+              </div>
+              <span>กำลังขนส่ง</span>
+            </li>
+            <li data-stage="out_for_delivery">
+              <div class="stage-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64" role="img">
+                  <path d="M32 53s15-14 15-27a15 15 0 1 0-30 0c0 13 15 27 15 27z"></path>
+                  <circle cx="32" cy="26" r="5"></circle>
+                  <path d="M14 51c5-3 11-4 18-4s13 1 18 4"></path>
+                  <circle class="accent accent-blue" cx="25" cy="22" r="4"></circle>
+                  <circle class="accent accent-coral" cx="39" cy="19" r="4"></circle>
+                </svg>
+                <span class="stage-check">✓</span>
+              </div>
+              <span>กำลังนำส่ง</span>
+            </li>
+            <li data-stage="delivered">
+              <div class="stage-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64" role="img">
+                  <path d="M14 24l18-10 18 10v22L32 56 14 46z"></path>
+                  <path d="M14 24l18 10 18-10M32 34v22"></path>
+                  <circle class="accent accent-coral" cx="24" cy="18" r="4"></circle>
+                  <circle class="accent accent-blue" cx="33" cy="17" r="4"></circle>
+                  <circle cx="48" cy="18" r="9"></circle>
+                  <path d="M44 18l3 3 6-7"></path>
+                </svg>
+                <span class="stage-check">✓</span>
+              </div>
+              <span>จัดส่งสำเร็จ</span>
+            </li>
+          </ol>
+
+          <dl class="shipment-facts">
+            <div>
+              <dt>ขนส่งที่ตรวจพบ</dt>
+              <dd id="customer-carrier-result">—</dd>
+            </div>
+            <div>
+              <dt id="customer-date-label">อัปเดตล่าสุด</dt>
+              <dd id="customer-delivery">—</dd>
+            </div>
+            <div>
+              <dt>สถานะจากขนส่ง</dt>
+              <dd id="customer-status">—</dd>
+            </div>
+          </dl>
+        </div>
+      </article>
+
+      <aside id="customer-history-card" class="history-card" aria-labelledby="history-title">
+        <h2 id="history-title">ประวัติการขนส่ง</h2>
+        <ol id="customer-timeline" class="shipment-timeline"></ol>
+        <p id="customer-history-note" class="history-note hidden">ขนส่งส่งกลับมาเฉพาะสถานะล่าสุด ระบบจึงแสดงข้อมูลเท่าที่มี</p>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="tracking-footer">BeDee · Tracking Center</footer>
+</body>
+</html>
