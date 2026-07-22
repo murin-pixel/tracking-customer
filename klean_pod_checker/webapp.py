@@ -17,7 +17,7 @@ from .interexpress import InterexpressClient, InterexpressError
 from .kex import KEX_TRACKING_RE, KexClient, KexError
 from .models import JobResult
 from .proof_tokens import local_kex_proof_parts, read_sheet_proof_token
-from .shopee import SHOPEE_ORDER_RE, extract_shopee_tracking
+from .shopee import extract_shopee_tracking
 from .sheets import KLEAN_ORDER_RE, normalize_tracking_input
 from .skyfrog import SkyfrogClient, SkyfrogError
 from .storage import StatusCache
@@ -216,31 +216,37 @@ def _search_anb(service: Any, tracking_number: str) -> tuple[JobResult, str]:
     return service.search(tracking_number, "interexpress"), "interexpress"
 
 
+def _search_mapped_tracking(
+    service: Any, tracking_number: str, carrier: str
+) -> tuple[JobResult, str]:
+    if carrier == "auto":
+        return _search_anb(service, tracking_number)
+    result = service.search(tracking_number, carrier)
+    if not result.found and carrier == "kex":
+        return service.search(tracking_number, "interexpress"), "interexpress"
+    return result, carrier
+
+
+def _order_tracking_references(
+    state_db_path: Path, order_number: str
+) -> list[tuple[str, str]]:
+    cache = StatusCache(state_db_path)
+    try:
+        references = cache.get_shopee_tracking_refs(order_number)
+        if not references:
+            references = _mapping_references_for_order(cache, order_number)
+        return references
+    finally:
+        cache.close()
+
+
 def _customer_lookup(
     service: Any,
     raw_order: str,
     state_db_path: Path,
 ) -> tuple[JobResult, str, str]:
-    """Search with customer-friendly carrier detection and KEX fallback."""
+    """Search KLEAN first, then imported tracking, with KEX fallback."""
     candidate = re.sub(r"\s+", "", raw_order or "").lstrip("#").upper()
-    if SHOPEE_ORDER_RE.fullmatch(candidate):
-        cache = StatusCache(state_db_path)
-        try:
-            tracking_refs = cache.get_shopee_tracking_refs(candidate)
-            if not tracking_refs:
-                tracking_refs = _mapping_references_for_order(cache, candidate)
-        finally:
-            cache.close()
-        if tracking_refs:
-            tracking_number, carrier = tracking_refs[0]
-            if carrier == "auto":
-                result, carrier = _search_anb(service, tracking_number)
-            else:
-                result = service.search(tracking_number, carrier)
-                if not result.found and carrier == "kex":
-                    result = service.search(tracking_number, "interexpress")
-                    carrier = "interexpress"
-            return result, carrier, candidate
     try:
         carrier, order_number = normalize_tracking_input(raw_order, "auto")
     except ValueError:
@@ -248,39 +254,35 @@ def _customer_lookup(
             raise
         result, carrier = _search_anb(service, candidate)
         return result, carrier, candidate
+
+    if carrier == "skyfrog":
+        skyfrog_error: Exception | None = None
+        try:
+            result = service.search(order_number, "skyfrog")
+        except (SkyfrogError, requests.RequestException) as error:
+            skyfrog_error = error
+            result = None
+        if result is not None and result.found:
+            return result, "skyfrog", order_number
+
+        references = _order_tracking_references(state_db_path, order_number)
+        if references:
+            mapped_result, mapped_carrier = _search_mapped_tracking(
+                service, *references[0]
+            )
+            return mapped_result, mapped_carrier, order_number
+        if result is not None:
+            return result, "skyfrog", order_number
+        assert skyfrog_error is not None
+        raise skyfrog_error
+
     return service.search(order_number, carrier), carrier, order_number
 
 
-def _cached_customer_lookup(
-    raw_order: str,
-    state_db_path: Path,
-    *,
-    max_age: timedelta = timedelta(hours=24),
-) -> tuple[JobResult, str, str] | None:
-    """Return a recent sanitized lookup source when a carrier is unavailable."""
-    candidate = re.sub(r"\s+", "", raw_order or "").lstrip("#").upper()
-    display_order = candidate
-    cache = StatusCache(state_db_path)
-    try:
-        if SHOPEE_ORDER_RE.fullmatch(candidate):
-            references = cache.get_shopee_tracking_refs(candidate)
-            if not references:
-                references = _mapping_references_for_order(cache, candidate)
-        else:
-            references = []
-        if references:
-            tracking_number, carrier = references[0]
-        else:
-            try:
-                carrier, tracking_number = normalize_tracking_input(raw_order, "auto")
-            except ValueError:
-                if not KEX_TRACKING_RE.fullmatch(candidate):
-                    return None
-                tracking_number, carrier = candidate, "auto"
-        result = cache.get(tracking_number)
-    finally:
-        cache.close()
-
+def _recent_cached_result(
+    cache: StatusCache, order_number: str, max_age: timedelta
+) -> JobResult | None:
+    result = cache.get(order_number)
     if result is None or not result.found or result.error or not result.checked_at:
         return None
     try:
@@ -291,15 +293,58 @@ def _cached_customer_lookup(
             return None
     except ValueError:
         return None
+    return result
 
+
+def _cached_carrier(result: JobResult, fallback: str) -> str:
     group = result.group_name.casefold()
     if "interexpress" in group:
-        carrier = "interexpress"
-    elif "kex" in group:
-        carrier = "kex"
-    elif carrier == "auto":
-        carrier = "kex"
-    return result, carrier, display_order
+        return "interexpress"
+    if "kex" in group:
+        return "kex"
+    return "kex" if fallback == "auto" else fallback
+
+
+def _cached_customer_lookup(
+    raw_order: str,
+    state_db_path: Path,
+    *,
+    max_age: timedelta = timedelta(hours=24),
+) -> tuple[JobResult, str, str] | None:
+    """Return a recent sanitized lookup source when a carrier is unavailable."""
+    candidate = re.sub(r"\s+", "", raw_order or "").lstrip("#").upper()
+    cache = StatusCache(state_db_path)
+    try:
+        try:
+            carrier, order_number = normalize_tracking_input(raw_order, "auto")
+        except ValueError:
+            if not KEX_TRACKING_RE.fullmatch(candidate):
+                return None
+            order_number, carrier = candidate, "auto"
+
+        if carrier == "skyfrog":
+            result = _recent_cached_result(cache, order_number, max_age)
+            if result is not None:
+                return result, "skyfrog", order_number
+            references = cache.get_shopee_tracking_refs(order_number)
+            if not references:
+                references = _mapping_references_for_order(cache, order_number)
+            for tracking_number, mapped_carrier in references:
+                result = _recent_cached_result(cache, tracking_number, max_age)
+                if result is not None:
+                    return (
+                        result,
+                        _cached_carrier(result, mapped_carrier),
+                        order_number,
+                    )
+            return None
+
+        result = _recent_cached_result(cache, order_number, max_age)
+        if result is None:
+            return None
+        return result, _cached_carrier(result, carrier), order_number
+    finally:
+        cache.close()
 
 
 def create_app(

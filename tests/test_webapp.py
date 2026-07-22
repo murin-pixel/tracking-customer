@@ -56,6 +56,23 @@ class UnavailableSearchService:
         raise requests.ReadTimeout("carrier timeout")
 
 
+class KleanNotFoundSearchService:
+    def __init__(self):
+        self.orders = []
+
+    def search(self, order_number, carrier="skyfrog"):
+        self.orders.append((carrier, order_number))
+        found = carrier != "skyfrog"
+        labels = {"kex": "KEX", "interexpress": "InterExpress"}
+        return JobResult(
+            order_number=order_number,
+            found=found,
+            status_code="110" if found else "",
+            status_th="กำลังขนส่ง" if found else "",
+            group_name=labels.get(carrier, ""),
+        )
+
+
 class WebAppTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -191,14 +208,19 @@ class WebAppTests(unittest.TestCase):
         finally:
             cache.close()
 
-        response = self.client.post(
+        search = KleanNotFoundSearchService()
+        app = create_app(settings=self.settings, search_service=search)
+        response = app.test_client().post(
             "/api/customer-check",
             json={"order": "260706V7PN6E5H"},
             base_url=self.base_url,
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.search.orders, [("kex", "ANBL000008245")])
+        self.assertEqual(
+            search.orders,
+            [("skyfrog", "260706V7PN6E5H"), ("kex", "ANBL000008245")],
+        )
         result = response.get_json()["result"]
         self.assertEqual(result["lookup_order"], "260706V7PN6E5H")
         self.assertEqual(result["order_number"], "ANBL000008245")
@@ -213,17 +235,47 @@ class WebAppTests(unittest.TestCase):
         finally:
             cache.close()
 
-        response = self.client.post(
+        search = KleanNotFoundSearchService()
+        app = create_app(settings=self.settings, search_service=search)
+        response = app.test_client().post(
             "/api/customer-check",
             json={"order": "260706V7PN6E5H"},
             base_url=self.base_url,
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.search.orders, [("interexpress", "ANBL26F000006319")])
+        self.assertEqual(
+            search.orders,
+            [
+                ("skyfrog", "260706V7PN6E5H"),
+                ("interexpress", "ANBL26F000006319"),
+            ],
+        )
         result = response.get_json()["result"]
         self.assertEqual(result["lookup_order"], "260706V7PN6E5H")
         self.assertEqual(result["carrier"], "InterExpress")
+
+    def test_customer_uses_klean_before_existing_sqlite_mapping(self):
+        order_number = "260706V7PN6E5H"
+        cache = StatusCache(self.settings.state_db_path)
+        try:
+            cache.put_shopee_tracking_refs(
+                [ShopeeTrackingRef(order_number, "ANBL000008245", "kex")]
+            )
+        finally:
+            cache.close()
+
+        response = self.client.post(
+            "/api/customer-check",
+            json={"order": order_number},
+            base_url=self.base_url,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.search.orders, [("skyfrog", order_number)])
+        result = response.get_json()["result"]
+        self.assertEqual(result["order_number"], order_number)
+        self.assertEqual(result["carrier"], "KLEAN&KARE")
 
     def test_customer_uses_recent_cache_when_carrier_times_out(self):
         cached_result = JobResult(

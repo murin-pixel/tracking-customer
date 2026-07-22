@@ -9,6 +9,7 @@
 ## ความสามารถหลัก
 
 - หน้า `/` และ `/customer.html` สำหรับลูกค้าค้นหาโดยไม่ต้องเลือกขนส่ง
+- เลขออเดอร์ที่ขึ้นต้น `26` ตรวจ KLEAN&KARE ก่อนเสมอ หากไม่พบจึงค้นหา SQLite Mapping
 - ค้นหาเลข ANB ที่ KEX ก่อน แล้ว fallback ไป InterExpress
 - แปลงเลขคำสั่งซื้อ Shopee เป็นเลขพัสดุจากข้อมูล Sell Report ที่นำเข้าแล้ว
 - ตรวจ Skyfrog, KEX และ InterExpress
