@@ -142,6 +142,20 @@ class WebAppTests(unittest.TestCase):
         )
         self.assertEqual(_customer_stage(result), ("out_for_delivery", False))
 
+    def test_customer_kex_hub_statuses_map_to_in_transit(self):
+        statuses = (
+            "พัสดุออกจากศูนย์กระจายสินค้า",
+            "พัสดุถึงคลังสินค้าปลายทาง",
+        )
+        for status in statuses:
+            with self.subTest(status=status):
+                result = JobResult(
+                    order_number="ANBL000012340",
+                    found=True,
+                    status_th=status,
+                )
+                self.assertEqual(_customer_stage(result), ("in_transit", False))
+
     def test_customer_anb_falls_back_from_kex_to_interexpress(self):
         fallback = FallbackSearchService()
         app = create_app(settings=self.settings, search_service=fallback)

@@ -96,7 +96,7 @@ function deriveStage(result) {
   const label = `${result.status_th || ""} ${result.status_en || ""}`.toLowerCase();
   if (result.delivered || ["A", "C", "POD", "PODEX", "400", "401"].includes(code)) return "delivered";
   if (["S", "045", "300"].includes(code) || /ออกนำส่ง|กำลังนำส่ง|กำลังจัดส่งพัสดุ|ระหว่างการนำส่ง|นำจ่าย|out for delivery/.test(label)) return "out_for_delivery";
-  if (["109", "200", "SIP-LH"].includes(code) || /ระหว่างขนส่ง|กำลังขนส่ง|ถึงศูนย์|in transit/.test(label)) return "in_transit";
+  if (["109", "200", "SIP-LH"].includes(code) || /ระหว่างขนส่ง|กำลังขนส่ง|ถึงศูนย์|ออกจากศูนย์กระจายสินค้า|ถึงคลังสินค้าปลายทาง|in transit/.test(label)) return "in_transit";
   return "received";
 }
 

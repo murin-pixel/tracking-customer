@@ -153,7 +153,15 @@ def _customer_stage(result: JobResult) -> tuple[str, bool]:
     ):
         return "out_for_delivery", False
     if code in {"109", "200", "SIP-LH"} or any(
-        word in status for word in ("ระหว่างขนส่ง", "กำลังขนส่ง", "ถึงศูนย์", "in transit")
+        word in status
+        for word in (
+            "ระหว่างขนส่ง",
+            "กำลังขนส่ง",
+            "ถึงศูนย์",
+            "ออกจากศูนย์กระจายสินค้า",
+            "ถึงคลังสินค้าปลายทาง",
+            "in transit",
+        )
     ):
         return "in_transit", False
     return "received", False
