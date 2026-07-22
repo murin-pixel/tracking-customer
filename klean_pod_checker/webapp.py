@@ -5,6 +5,7 @@ import re
 import threading
 import time
 from collections import defaultdict, deque
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -250,6 +251,57 @@ def _customer_lookup(
     return service.search(order_number, carrier), carrier, order_number
 
 
+def _cached_customer_lookup(
+    raw_order: str,
+    state_db_path: Path,
+    *,
+    max_age: timedelta = timedelta(hours=24),
+) -> tuple[JobResult, str, str] | None:
+    """Return a recent sanitized lookup source when a carrier is unavailable."""
+    candidate = re.sub(r"\s+", "", raw_order or "").lstrip("#").upper()
+    display_order = candidate
+    cache = StatusCache(state_db_path)
+    try:
+        if SHOPEE_ORDER_RE.fullmatch(candidate):
+            references = cache.get_shopee_tracking_refs(candidate)
+            if not references:
+                references = _mapping_references_for_order(cache, candidate)
+        else:
+            references = []
+        if references:
+            tracking_number, carrier = references[0]
+        else:
+            try:
+                carrier, tracking_number = normalize_tracking_input(raw_order, "auto")
+            except ValueError:
+                if not KEX_TRACKING_RE.fullmatch(candidate):
+                    return None
+                tracking_number, carrier = candidate, "auto"
+        result = cache.get(tracking_number)
+    finally:
+        cache.close()
+
+    if result is None or not result.found or result.error or not result.checked_at:
+        return None
+    try:
+        checked_at = datetime.fromisoformat(result.checked_at)
+        if checked_at.tzinfo is None:
+            checked_at = checked_at.astimezone()
+        if datetime.now().astimezone() - checked_at > max_age:
+            return None
+    except ValueError:
+        return None
+
+    group = result.group_name.casefold()
+    if "interexpress" in group:
+        carrier = "interexpress"
+    elif "kex" in group:
+        carrier = "kex"
+    elif carrier == "auto":
+        carrier = "kex"
+    return result, carrier, display_order
+
+
 def create_app(
     *,
     settings: Settings | None = None,
@@ -293,10 +345,11 @@ def create_app(
         if not customer_search_limiter.allow(_client_ip()):
             return jsonify(error="ค้นหาถี่เกินไป กรุณารอสักครู่แล้วลองใหม่"), 429
         payload = request.get_json(silent=True) or {}
+        raw_order = str(payload.get("order", ""))
         try:
             result, carrier, display_order = _customer_lookup(
                 service,
-                str(payload.get("order", "")),
+                raw_order,
                 settings.state_db_path,
             )
         except ValueError as exc:
@@ -307,8 +360,16 @@ def create_app(
             InterexpressError,
             requests.RequestException,
         ):
-            app.logger.exception("Customer carrier search failed")
-            return jsonify(error="ยังเชื่อมต่อระบบขนส่งไม่ได้ กรุณาลองใหม่อีกครั้ง"), 502
+            cached = _cached_customer_lookup(raw_order, settings.state_db_path)
+            if cached is None:
+                app.logger.exception("Customer carrier search failed")
+                return jsonify(error="ยังเชื่อมต่อระบบขนส่งไม่ได้ กรุณาลองใหม่อีกครั้ง"), 502
+            app.logger.warning("Carrier unavailable; serving recent cached customer status")
+            result, carrier, display_order = cached
+            customer_result = _customer_result(result, carrier)
+            customer_result["lookup_order"] = display_order
+            customer_result["cached"] = True
+            return jsonify(result=customer_result)
         customer_result = _customer_result(result, carrier)
         customer_result["lookup_order"] = display_order
         return jsonify(result=customer_result)

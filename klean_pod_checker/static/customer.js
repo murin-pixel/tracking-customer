@@ -13,6 +13,9 @@ const warning = document.querySelector("#customer-exception");
 const resultSeparator = document.querySelector("#customer-result-separator");
 
 const NOT_FOUND_GUIDANCE = "สอบถามข้อมูลเพิ่มเติม กรุณาติดต่อฝ่ายบริการลูกค้าตามช่องทางที่ท่านสั่งซื้อ";
+const LIMITED_HISTORY_NOTE = "ขนส่งส่งกลับมาเฉพาะสถานะล่าสุด ระบบจึงแสดงข้อมูลเท่าที่มี";
+const CACHED_STATUS_NOTE = "แสดงสถานะล่าสุดที่ระบบบันทึกไว้ เนื่องจากขนส่งตอบกลับชั่วคราว";
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
 
 const STAGES = ["received", "in_transit", "out_for_delivery", "delivered"];
 const STAGE_LABELS = {
@@ -175,7 +178,13 @@ function renderTimeline(result, stage, statusLabel) {
   }
 
   events.forEach(appendTimelineItem);
-  historyNote.classList.toggle("hidden", events.length > 1);
+  if (result.cached) {
+    historyNote.textContent = CACHED_STATUS_NOTE;
+    historyNote.classList.remove("hidden");
+  } else {
+    historyNote.textContent = LIMITED_HISTORY_NOTE;
+    historyNote.classList.toggle("hidden", events.length > 1);
+  }
 }
 
 function formatExceptionMessage(statusLabel) {
@@ -229,6 +238,51 @@ function renderResult(result) {
   searchStatus.textContent = `พบพัสดุ สถานะ ${statusLabel}`;
 }
 
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function readApiPayload(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function requestCustomerStatus(order) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch("/api/customer-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ order }),
+      });
+      const payload = await readApiPayload(response);
+      if (response.ok && payload?.result) return payload.result;
+
+      const transient = payload === null || TRANSIENT_HTTP_STATUSES.has(response.status);
+      if (attempt === 0 && transient) {
+        searchButton.textContent = "กำลังลองอีกครั้ง…";
+        searchStatus.textContent = "ระบบขนส่งตอบกลับช้า กำลังลองเชื่อมต่ออีกครั้ง";
+        await wait(800);
+        continue;
+      }
+      throw new Error(payload?.error || "ระบบขนส่งตอบกลับช้า กรุณาลองใหม่อีกครั้ง");
+    } catch (error) {
+      if (attempt === 0 && error instanceof TypeError) {
+        searchButton.textContent = "กำลังลองอีกครั้ง…";
+        searchStatus.textContent = "การเชื่อมต่อสะดุด กำลังลองอีกครั้ง";
+        await wait(800);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("เชื่อมต่อระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   errorBox.classList.add("hidden");
@@ -238,14 +292,8 @@ form.addEventListener("submit", async (event) => {
   searchButton.textContent = "กำลังตรวจสอบ…";
   searchStatus.textContent = "กำลังตรวจสอบสถานะพัสดุ";
   try {
-    const response = await fetch("/api/customer-check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order: orderInput.value.trim() }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || "ค้นหาไม่สำเร็จ กรุณาลองใหม่");
-    renderResult(payload.result);
+    const result = await requestCustomerStatus(orderInput.value.trim());
+    renderResult(result);
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     resultPanel.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "nearest" });
   } catch (error) {

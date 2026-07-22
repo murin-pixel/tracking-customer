@@ -1,6 +1,9 @@
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
+
+import requests
 
 from klean_pod_checker.config import Settings
 from klean_pod_checker.models import JobResult
@@ -46,6 +49,11 @@ class FallbackSearchService:
             status_th="จัดส่งสำเร็จ" if carrier == "interexpress" else "",
             delivered=carrier == "interexpress",
         )
+
+
+class UnavailableSearchService:
+    def search(self, order_number, carrier="skyfrog"):
+        raise requests.ReadTimeout("carrier timeout")
 
 
 class WebAppTests(unittest.TestCase):
@@ -216,6 +224,104 @@ class WebAppTests(unittest.TestCase):
         result = response.get_json()["result"]
         self.assertEqual(result["lookup_order"], "260706V7PN6E5H")
         self.assertEqual(result["carrier"], "InterExpress")
+
+    def test_customer_uses_recent_cache_when_carrier_times_out(self):
+        cached_result = JobResult(
+            order_number="ANBL000012448",
+            found=True,
+            status_code="110",
+            status_th="พัสดุออกจากศูนย์กระจายสินค้า",
+            group_name="KEX",
+            checked_at=datetime.now().astimezone().isoformat(timespec="seconds"),
+            customer="Sensitive Customer Name",
+            raw={"private": "must-not-leak"},
+        )
+        cache = StatusCache(self.settings.state_db_path)
+        try:
+            cache.put(cached_result)
+        finally:
+            cache.close()
+        app = create_app(
+            settings=self.settings,
+            search_service=UnavailableSearchService(),
+        )
+
+        response = app.test_client().post(
+            "/api/customer-check",
+            json={"order": "ANBL000012448"},
+            base_url=self.base_url,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.get_json()["result"]
+        self.assertTrue(result["cached"])
+        self.assertEqual(result["stage"], "in_transit")
+        self.assertEqual(result["carrier"], "KEX")
+        self.assertNotIn("customer", result)
+        self.assertNotIn("raw", result)
+
+    def test_customer_klean_order_uses_recent_cache_when_skyfrog_times_out(self):
+        cached_result = JobResult(
+            order_number="2607218HNJ7240",
+            found=True,
+            status_code="R",
+            status_th="กำลังขนส่ง",
+            group_name="KLEAN&KARE",
+            checked_at=datetime.now().astimezone().isoformat(timespec="seconds"),
+        )
+        cache = StatusCache(self.settings.state_db_path)
+        try:
+            cache.put(cached_result)
+        finally:
+            cache.close()
+        app = create_app(
+            settings=self.settings,
+            search_service=UnavailableSearchService(),
+        )
+
+        response = app.test_client().post(
+            "/api/customer-check",
+            json={"order": "2607218HNJ7240"},
+            base_url=self.base_url,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.get_json()["result"]
+        self.assertTrue(result["cached"])
+        self.assertEqual(result["carrier"], "KLEAN&KARE")
+        self.assertEqual(result["lookup_order"], "2607218HNJ7240")
+
+    def test_customer_rejects_stale_cache_when_carrier_times_out(self):
+        cached_result = JobResult(
+            order_number="ANBL000012448",
+            found=True,
+            status_th="รับงานแล้ว",
+            group_name="KEX",
+            checked_at=(datetime.now().astimezone() - timedelta(days=2)).isoformat(
+                timespec="seconds"
+            ),
+        )
+        cache = StatusCache(self.settings.state_db_path)
+        try:
+            cache.put(cached_result)
+        finally:
+            cache.close()
+        app = create_app(
+            settings=self.settings,
+            search_service=UnavailableSearchService(),
+        )
+
+        response = app.test_client().post(
+            "/api/customer-check",
+            json={"order": "ANBL000012448"},
+            base_url=self.base_url,
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(
+            response.get_json()["error"],
+            "ยังเชื่อมต่อระบบขนส่งไม่ได้ กรุณาลองใหม่อีกครั้ง",
+        )
 
     def test_invalid_customer_input_returns_json_error(self):
         response = self.client.post(
