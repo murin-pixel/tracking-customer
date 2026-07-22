@@ -1,6 +1,6 @@
 # KLEAN&KARE Delivery Tracking
 
-ระบบตรวจสอบสถานะพัสดุ KLEAN&KARE สำหรับลูกค้าและทีม CS รองรับเลขงานที่ขึ้นต้นด้วย `26`,
+ระบบตรวจสอบสถานะพัสดุ KLEAN&KARE สำหรับลูกค้า รองรับเลขงานที่ขึ้นต้นด้วย `26`,
 เลขพัสดุ `ANB` ของ KEX/InterExpress และเลขคำสั่งซื้อ Shopee ที่นำเข้าไว้แล้ว
 
 หน้า public แสดงเฉพาะเลขพัสดุ ผู้ให้บริการ สถานะ และเวลา ไม่แสดงชื่อลูกค้า ที่อยู่
@@ -8,10 +8,9 @@
 
 ## ความสามารถหลัก
 
-- หน้า `/customer.html` สำหรับลูกค้าค้นหาโดยไม่ต้องเลือกขนส่ง
+- หน้า `/` และ `/customer.html` สำหรับลูกค้าค้นหาโดยไม่ต้องเลือกขนส่ง
 - ค้นหาเลข ANB ที่ KEX ก่อน แล้ว fallback ไป InterExpress
 - แปลงเลขคำสั่งซื้อ Shopee เป็นเลขพัสดุจากข้อมูล Sell Report ที่นำเข้าแล้ว
-- หน้า CS สำหรับตรวจสถานะสด สร้างรายงาน และเปิดหลักฐานหลัง login
 - ตรวจ Skyfrog, KEX และ InterExpress
 - นำเข้า Shopee Sell Report ด้วย Playwright/Chromium
 - เก็บ mapping และ cache ใน SQLite
@@ -21,7 +20,7 @@
 ## โครงสร้างระบบ
 
 ```text
-customer / CS browser
+customer browser
         |
    Nginx + HTTPS
         |
@@ -141,7 +140,6 @@ sudo -u milk nano .env
 - `SKYFROG_CUSTOMER_CODE`, `SKYFROG_USERNAME`, `SKYFROG_PASSWORD`
 - `KEX_PROOF_PIN`
 - `INTEREXPRESS_USERNAME`, `INTEREXPRESS_PASSWORD`
-- `CS_ACCESS_PIN`
 - `WEB_SECRET_KEY` สร้างด้วย `openssl rand -hex 32`
 - `PUBLIC_BASE_URL`
 - `GOOGLE_SHEETS_WEBHOOK_URL`, `GOOGLE_SHEETS_WEBHOOK_SECRET`

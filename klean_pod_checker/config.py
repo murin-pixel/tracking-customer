@@ -41,9 +41,7 @@ class Settings:
     request_delay_seconds: float
     output_dir: Path
     state_db_path: Path
-    cs_access_pin: str
     web_secret_key: str
-    web_session_hours: int
     google_sheets_webhook_url: str
     google_sheets_webhook_secret: str
     kex_proof_pin: str = ""
@@ -78,9 +76,7 @@ class Settings:
             state_db_path=_path(
                 os.environ.get("STATE_DB_PATH", "./data/status-cache.sqlite")
             ),
-            cs_access_pin=os.environ.get("CS_ACCESS_PIN", "").strip(),
             web_secret_key=os.environ.get("WEB_SECRET_KEY", "").strip(),
-            web_session_hours=max(1, int(os.environ.get("WEB_SESSION_HOURS", "12"))),
             google_sheets_webhook_url=os.environ.get(
                 "GOOGLE_SHEETS_WEBHOOK_URL", ""
             ).strip(),
