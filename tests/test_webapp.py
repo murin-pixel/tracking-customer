@@ -7,7 +7,6 @@ import requests
 
 from klean_pod_checker.config import Settings
 from klean_pod_checker.models import JobResult
-from klean_pod_checker.shopee import ShopeeTrackingRef
 from klean_pod_checker.storage import StatusCache
 from klean_pod_checker.webapp import _customer_stage, create_app
 
@@ -73,6 +72,23 @@ class KleanNotFoundSearchService:
         )
 
 
+class FakeMappingStore:
+    def __init__(self):
+        self.references = {}
+
+    def add(self, order_number, tracking_number, carrier):
+        self.references.setdefault(order_number, []).append((tracking_number, carrier))
+
+    def get_tracking_refs(self, order_number):
+        return list(self.references.get(order_number, []))
+
+    def get_order_for_tracking(self, tracking_number):
+        for order_number, references in self.references.items():
+            if any(number == tracking_number for number, _ in references):
+                return order_number
+        return None
+
+
 class WebAppTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -97,7 +113,12 @@ class WebAppTests(unittest.TestCase):
             public_base_url="https://ffm.example.test",
         )
         self.search = FakeSearchService()
-        self.app = create_app(settings=self.settings, search_service=self.search)
+        self.mappings = FakeMappingStore()
+        self.app = create_app(
+            settings=self.settings,
+            search_service=self.search,
+            mapping_store=self.mappings,
+        )
         self.app.testing = True
         self.client = self.app.test_client()
         self.base_url = "https://localhost"
@@ -181,6 +202,23 @@ class WebAppTests(unittest.TestCase):
                 )
                 self.assertEqual(_customer_stage(result), ("in_transit", False))
 
+    def test_customer_interexpress_statuses_use_requested_stages(self):
+        cases = {
+            "คีย์ข้อมูลพัสดุเข้าระบบ": "received",
+            "พัสดุออกจากศูนย์คัดแยก": "out_for_delivery",
+            "พัสดุออกจากคลังกระจายสินค้า": "out_for_delivery",
+            "พัสดุออกจากศูนย์เพื่อจัดส่งให้ลูกค้า": "out_for_delivery",
+        }
+        for status, expected_stage in cases.items():
+            with self.subTest(status=status):
+                result = JobResult(
+                    order_number="ANBL26F000006103",
+                    found=True,
+                    status_th=status,
+                    group_name="InterExpress",
+                )
+                self.assertEqual(_customer_stage(result), (expected_stage, False))
+
     def test_customer_anb_falls_back_from_kex_to_interexpress(self):
         fallback = FallbackSearchService()
         app = create_app(settings=self.settings, search_service=fallback)
@@ -200,16 +238,14 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(result["stage"], "delivered")
 
     def test_customer_shopee_order_uses_imported_tracking_number(self):
-        cache = StatusCache(self.settings.state_db_path)
-        try:
-            cache.put_shopee_tracking_refs(
-                [ShopeeTrackingRef("260706V7PN6E5H", "ANBL000008245", "kex")]
-            )
-        finally:
-            cache.close()
+        self.mappings.add("260706V7PN6E5H", "ANBL000008245", "kex")
 
         search = KleanNotFoundSearchService()
-        app = create_app(settings=self.settings, search_service=search)
+        app = create_app(
+            settings=self.settings,
+            search_service=search,
+            mapping_store=self.mappings,
+        )
         response = app.test_client().post(
             "/api/customer-check",
             json={"order": "260706V7PN6E5H"},
@@ -227,16 +263,16 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(result["carrier"], "KEX")
 
     def test_customer_shopee_order_uses_imported_mapping_fallback(self):
-        cache = StatusCache(self.settings.state_db_path)
-        try:
-            cache.put_shopee_mapping_rows(
-                [("260706V7PN6E5H", "INTEREXPRESS เลขพัสดุ ANBL26F000006319")]
-            )
-        finally:
-            cache.close()
+        self.mappings.add(
+            "260706V7PN6E5H", "ANBL26F000006319", "interexpress"
+        )
 
         search = KleanNotFoundSearchService()
-        app = create_app(settings=self.settings, search_service=search)
+        app = create_app(
+            settings=self.settings,
+            search_service=search,
+            mapping_store=self.mappings,
+        )
         response = app.test_client().post(
             "/api/customer-check",
             json={"order": "260706V7PN6E5H"},
@@ -255,15 +291,9 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(result["lookup_order"], "260706V7PN6E5H")
         self.assertEqual(result["carrier"], "InterExpress")
 
-    def test_customer_uses_klean_before_existing_sqlite_mapping(self):
+    def test_customer_uses_klean_before_existing_supabase_mapping(self):
         order_number = "260706V7PN6E5H"
-        cache = StatusCache(self.settings.state_db_path)
-        try:
-            cache.put_shopee_tracking_refs(
-                [ShopeeTrackingRef(order_number, "ANBL000008245", "kex")]
-            )
-        finally:
-            cache.close()
+        self.mappings.add(order_number, "ANBL000008245", "kex")
 
         response = self.client.post(
             "/api/customer-check",
@@ -369,7 +399,7 @@ class WebAppTests(unittest.TestCase):
             base_url=self.base_url,
         )
 
-        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.status_code, 424)
         self.assertEqual(
             response.get_json()["error"],
             "ยังเชื่อมต่อระบบขนส่งไม่ได้ กรุณาลองใหม่อีกครั้ง",

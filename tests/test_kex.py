@@ -64,7 +64,14 @@ class FakeSession:
                                 "s_code": "POD",
                                 "s_desc": "จัดส่งพัสดุสำเร็จ",
                                 "s_datetime": "2026-06-28T12:16:13",
-                            }
+                                "loc": "กุฉินารายณ์, กาฬสินธุ์",
+                            },
+                            {
+                                "s_code": "010",
+                                "s_desc": "พนักงานเข้ารับพัสดุแล้ว",
+                                "s_datetime": "2026-06-27T18:07:32",
+                                "loc": "บางพลี, สมุทรปราการ",
+                            },
                         ],
                     },
                 }
@@ -89,6 +96,7 @@ class KexClientTests(unittest.TestCase):
             self.assertTrue(result.delivered)
             self.assertEqual(result.status_code, "POD")
             self.assertEqual(result.group_name, "KEX")
+            self.assertEqual(result.location, "กุฉินารายณ์, กาฬสินธุ์")
             self.assertEqual(result.driver, "KEX Driver")
             self.assertEqual(len(result.proof_urls), 2)
             self.assertTrue(all(url.startswith("/proof/kex/") for url in result.proof_urls))

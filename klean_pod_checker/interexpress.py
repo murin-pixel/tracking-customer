@@ -93,6 +93,8 @@ class InterexpressClient:
             status_code = str(payload.get("lastStatusCode") or "")
             status_th = str(payload.get("ttDisplayRemarks") or "ไม่ทราบสถานะ")
             delivery_at = str(payload.get("actDeliveryDt") or "")
+            latest_detail = _latest_tracking_detail(payload)
+            location = str(latest_detail.get("dcThName") or "").strip()
             delivered = (
                 status_code.upper() == "POD"
                 or "จัดส่งสำเร็จ" in status_th
@@ -109,6 +111,7 @@ class InterexpressClient:
                 created_at=str(payload.get("actPickupDt") or payload.get("estPickupDt") or ""),
                 delivery_at=delivery_at,
                 updated_at=str(payload.get("lastStatusDt") or delivery_at),
+                location=location,
                 checked_at=checked_at,
                 raw={},
             )
@@ -123,3 +126,13 @@ def _normalize_tracking(value: str) -> str:
     if not INTEREXPRESS_TRACKING_RE.fullmatch(tracking):
         raise ValueError("เลขพัสดุ InterExpress ต้องขึ้นต้นด้วย ANB")
     return tracking
+
+
+def _latest_tracking_detail(payload: dict) -> dict:
+    details = payload.get("shipmentTrackingDetail")
+    if not isinstance(details, list):
+        return {}
+    rows = [row for row in details if isinstance(row, dict)]
+    if not rows:
+        return {}
+    return max(rows, key=lambda row: str(row.get("trackingDt") or ""))

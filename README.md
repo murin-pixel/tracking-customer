@@ -9,12 +9,12 @@
 ## ความสามารถหลัก
 
 - หน้า `/` และ `/customer.html` สำหรับลูกค้าค้นหาโดยไม่ต้องเลือกขนส่ง
-- เลขออเดอร์ที่ขึ้นต้น `26` ตรวจ KLEAN&KARE ก่อนเสมอ หากไม่พบจึงค้นหา SQLite Mapping
+- เลขออเดอร์ที่ขึ้นต้น `26` ตรวจ KLEAN&KARE ก่อนเสมอ หากไม่พบจึงค้นหา Supabase Mapping
 - ค้นหาเลข ANB ที่ KEX ก่อน แล้ว fallback ไป InterExpress
 - แปลงเลขคำสั่งซื้อ Shopee เป็นเลขพัสดุจากข้อมูล Sell Report ที่นำเข้าแล้ว
 - ตรวจ Skyfrog, KEX และ InterExpress
 - นำเข้า Shopee Sell Report ด้วย Playwright/Chromium
-- เก็บ mapping และ cache ใน SQLite
+- เก็บ Shopee Mapping ใน Supabase และเก็บเฉพาะ status cache ใน SQLite
 - เขียนสถานะกลับ Google Sheet ผ่าน Apps Script webhook
 - ตั้งเวลาทำงานด้วย systemd timers
 
@@ -30,7 +30,8 @@ Gunicorn / Flask :8091
         +-- Skyfrog API
         +-- KEX tracking
         +-- InterExpress API
-        +-- SQLite: data/status-cache.sqlite
+        +-- Supabase: Shopee order mapping
+        +-- SQLite: status cache เท่านั้น
         +-- Shopee Sell Report importer
         +-- Google Sheet / Apps Script
 ```
@@ -76,7 +77,64 @@ cp .env.example .env
 
 ตรวจ health check ที่ `http://127.0.0.1:8091/health`
 
-## Deploy บน Hostinger VPS
+## Deploy ด้วย Docker Compose
+
+ต้องใช้ Hostinger VPS ที่รองรับ Docker ไม่ใช่ Shared Web Hosting จากนั้น clone repository
+และสร้างไฟล์ตั้งค่าจริงบนเซิร์ฟเวอร์:
+
+```bash
+git clone https://github.com/milk275/BEDEE-FULFILMENT.git
+cd BEDEE-FULFILMENT
+cp .env.example .env
+chmod 600 .env
+nano .env
+```
+
+กำหนด secrets ทุกช่องที่จำเป็น รวมถึง `WEB_SECRET_KEY` อย่างน้อย 32 ตัวอักษร
+หน้าเว็บที่เปิดให้บริการมีเฉพาะ customer tracking และไม่มีหน้า CS/login
+
+สร้างโฟลเดอร์ runtime ซึ่งถูก ignore จาก Git และกำหนดสิทธิ์ให้ user ภายใน container:
+
+```bash
+mkdir -p runtime/data runtime/outputs \
+  runtime/shopee/session runtime/shopee/reports runtime/shopee/work
+chown -R 10001:10001 runtime
+```
+
+สร้างและเปิดเฉพาะเว็บ customer tracking:
+
+```bash
+docker compose build web
+docker compose up -d web
+docker compose ps
+curl -fsS http://127.0.0.1:8091/health
+```
+
+ค่าเริ่มต้นจะ bind ที่ `127.0.0.1:8091` ให้วาง Nginx หรือ Caddy ด้านหน้าเพื่อทำ HTTPS
+ห้ามเปิด `.env`, `runtime/data`, หลักฐาน KEX หรือ Shopee profile ต่อสาธารณะ
+
+เมื่อต้องการย้ายงานดาวน์โหลด Shopee รายชั่วโมง ให้คัดลอก browser profile ที่ล็อกอินแล้ว
+เข้า `runtime/shopee/session/` ผ่าน SSH โดยตรง แล้วเปิด profile `shopee`:
+
+```bash
+docker compose --profile shopee build
+docker compose --profile shopee up -d
+docker compose logs -f shopee-sync
+```
+
+บริการ `shopee-sync` จะทำงานทุกชั่วโมงเวลา `08:05` ถึง `23:05` ตาม `TZ=Asia/Bangkok`
+และนำ mapping เข้า Supabase หลังดาวน์โหลดสำเร็จ ไฟล์ session และรายงานจะอยู่ใต้
+`runtime/` เท่านั้นและไม่ถูกอัปโหลด GitHub
+
+อัปเดตเวอร์ชันภายหลัง:
+
+```bash
+git pull --ff-only
+docker compose --profile shopee build --pull
+docker compose --profile shopee up -d
+```
+
+## Deploy บน Hostinger VPS ด้วย systemd
 
 ### 1. เตรียม VPS
 
@@ -141,11 +199,32 @@ sudo -u milk nano .env
 - `SKYFROG_CUSTOMER_CODE`, `SKYFROG_USERNAME`, `SKYFROG_PASSWORD`
 - `KEX_PROOF_PIN`
 - `INTEREXPRESS_USERNAME`, `INTEREXPRESS_PASSWORD`
+- `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_MAPPING_TABLE`
 - `WEB_SECRET_KEY` สร้างด้วย `openssl rand -hex 32`
 - `PUBLIC_BASE_URL`
 - `GOOGLE_SHEETS_WEBHOOK_URL`, `GOOGLE_SHEETS_WEBHOOK_SECRET`
 
 ห้ามส่ง `.env` ผ่าน GitHub, chat หรือ email
+
+### 4.1 สร้าง Supabase Mapping
+
+สร้าง Supabase project แล้วเปิด SQL Editor จากนั้นรันไฟล์:
+
+```text
+supabase/schema.sql
+```
+
+ใช้ secret key หรือ legacy service-role key เฉพาะใน `.env` ของเซิร์ฟเวอร์ ห้ามใส่ key
+ใน JavaScript หรือ GitHub ตารางเปิด RLS และไม่มี policy สำหรับ browser
+
+เมื่อตั้งค่าครั้งแรก ให้ย้าย Mapping เดิมจาก SQLite ไป Supabase หนึ่งครั้ง:
+
+```bash
+sudo -u milk .venv/bin/python -m klean_pod_checker.migrate_sqlite_mapping \
+  --database data/status-cache.sqlite
+```
+
+ตรวจข้อมูลใน Supabase Table Editor ก่อนเปิดใช้เว็บเวอร์ชัน Supabase
 
 ### 5. ย้ายข้อมูล runtime จากเครื่องเดิม
 
@@ -242,7 +321,7 @@ systemctl restart klean-pod-web.service
 
 # นำเข้า Shopee Sell Report ล่าสุด
 .venv/bin/python -m klean_pod_checker.shopee_sales_sync \
-  --database data/status-cache.sqlite
+  --report-directory /home/milk/kleanandkare-shopee/sales-reports
 ```
 
 ## ทดสอบ
@@ -262,6 +341,7 @@ node --check klean_pod_checker/download_shopee_report.js
 
 - Repository เป็น public จึงต้องตรวจ secret scan ก่อน push ทุกครั้ง
 - ห้าม commit `.env`, SQLite, proof images, reports หรือ Shopee browser profile
+- ห้ามใช้ Supabase secret/service-role key ใน browser หรือ source code
 - เปิด firewall เฉพาะ 22, 80 และ 443
 - ใช้ SSH key และปิด password login หลังตรวจว่าสามารถเข้า VPS ได้
 - สำรอง SQLite, proof images และ Shopee profile แบบเข้ารหัส

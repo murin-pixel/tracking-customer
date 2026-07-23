@@ -34,6 +34,7 @@ class JobResult:
     created_at: str = ""
     delivery_at: str = ""
     updated_at: str = ""
+    location: str = ""
     customer: str = ""
     proof_urls: list[str] = field(default_factory=list)
     checked_at: str = ""

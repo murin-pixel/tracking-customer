@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
   <title>Tracking Center · BeDee</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='customer.css', v='20260720c') }}">
-  <script defer src="{{ url_for('static', filename='customer.js', v='20260722b') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='customer.css', v='20260723c') }}">
+  <script defer src="{{ url_for('static', filename='customer.js', v='20260723c') }}"></script>
 </head>
 <body>
   <header class="tracking-header">
@@ -122,6 +122,10 @@
             <div>
               <dt>สถานะจากขนส่ง</dt>
               <dd id="customer-status">—</dd>
+            </div>
+            <div id="customer-location-fact" class="hidden">
+              <dt>พัสดุอยู่ที่</dt>
+              <dd id="customer-location">—</dd>
             </div>
           </dl>
         </div>

@@ -17,10 +17,10 @@ from .interexpress import InterexpressClient, InterexpressError
 from .kex import KEX_TRACKING_RE, KexClient, KexError
 from .models import JobResult
 from .proof_tokens import local_kex_proof_parts, read_sheet_proof_token
-from .shopee import extract_shopee_tracking
-from .sheets import KLEAN_ORDER_RE, normalize_tracking_input
+from .sheets import normalize_tracking_input
 from .skyfrog import SkyfrogClient, SkyfrogError
 from .storage import StatusCache
+from .supabase_mapping import SupabaseMappingError, SupabaseMappingStore
 
 
 class SlidingWindowLimiter:
@@ -41,7 +41,6 @@ class SlidingWindowLimiter:
                 return False
             events.append(now)
             return True
-
 
 class LiveSearchService:
     """Reuse carrier clients safely inside each web process."""
@@ -109,6 +108,11 @@ class LiveSearchService:
             cache.close()
 
 
+def _client_ip() -> str:
+    forwarded = request.headers.get("CF-Connecting-IP", "").strip()
+    return forwarded or (request.remote_addr or "unknown")
+
+
 CUSTOMER_CARRIER_LABELS = {
     "skyfrog": "KLEAN&KARE",
     "kex": "KEX",
@@ -117,15 +121,11 @@ CUSTOMER_CARRIER_LABELS = {
 CUSTOMER_EXCEPTION_CODES = {"E", "P", "060.01M", "060.09", "060.10", "112"}
 
 
-def _client_ip() -> str:
-    forwarded = request.headers.get("CF-Connecting-IP", "").strip()
-    return forwarded or (request.remote_addr or "unknown")
-
-
 def _customer_stage(result: JobResult) -> tuple[str, bool]:
     """Map carrier-specific statuses to the four public tracking stages."""
     code = result.status_code.strip().upper()
     status = f"{result.status_th} {result.status_en}".casefold()
+    is_interexpress = result.group_name.casefold() == "interexpress"
     exception = code in CUSTOMER_EXCEPTION_CODES or any(
         word in status
         for word in (
@@ -141,6 +141,18 @@ def _customer_stage(result: JobResult) -> tuple[str, bool]:
         return "delivered", False
     if exception:
         return "in_transit", True
+    if is_interexpress:
+        if code == "MDE" or "คีย์ข้อมูลพัสดุเข้าระบบ" in status:
+            return "received", False
+        if code in {"SOP-HUB", "TKL", "SOP-DEL"} or any(
+            word in status
+            for word in (
+                "พัสดุออกจากศูนย์คัดแยก",
+                "พัสดุออกจากคลังกระจายสินค้า",
+                "พัสดุออกจากศูนย์เพื่อจัดส่งให้ลูกค้า",
+            )
+        ):
+            return "out_for_delivery", False
     if code in {"S", "045", "300"} or any(
         word in status
         for word in (
@@ -183,30 +195,10 @@ def _customer_result(result: JobResult, carrier: str) -> dict[str, Any]:
         "created_at": result.created_at,
         "delivery_at": result.delivery_at,
         "updated_at": result.updated_at,
+        "location": result.location,
         "checked_at": result.checked_at,
         "carrier": CUSTOMER_CARRIER_LABELS.get(carrier, carrier),
     }
-
-
-def _mapping_references_for_order(
-    cache: StatusCache, order_number: str
-) -> list[tuple[str, str]]:
-    """Resolve imported Mapping Order values into carrier-ready references."""
-    references: dict[tuple[str, str], None] = {}
-    for raw_value in cache.get_shopee_mapping_values(order_number):
-        klean_match = KLEAN_ORDER_RE.search(raw_value)
-        if klean_match:
-            references[(klean_match.group(1).upper(), "skyfrog")] = None
-            continue
-        extracted = extract_shopee_tracking(raw_value)
-        if extracted:
-            carrier, tracking_number = extracted
-            references[(tracking_number, carrier)] = None
-            continue
-        anb_match = KEX_TRACKING_RE.search(raw_value)
-        if anb_match:
-            references[(anb_match.group(0).upper(), "auto")] = None
-    return sorted(references, key=lambda item: item[0])
 
 
 def _search_anb(service: Any, tracking_number: str) -> tuple[JobResult, str]:
@@ -228,22 +220,15 @@ def _search_mapped_tracking(
 
 
 def _order_tracking_references(
-    state_db_path: Path, order_number: str
+    mapping_store: Any, order_number: str
 ) -> list[tuple[str, str]]:
-    cache = StatusCache(state_db_path)
-    try:
-        references = cache.get_shopee_tracking_refs(order_number)
-        if not references:
-            references = _mapping_references_for_order(cache, order_number)
-        return references
-    finally:
-        cache.close()
+    return mapping_store.get_tracking_refs(order_number)
 
 
 def _customer_lookup(
     service: Any,
     raw_order: str,
-    state_db_path: Path,
+    mapping_store: Any,
 ) -> tuple[JobResult, str, str]:
     """Search KLEAN first, then imported tracking, with KEX fallback."""
     candidate = re.sub(r"\s+", "", raw_order or "").lstrip("#").upper()
@@ -265,7 +250,7 @@ def _customer_lookup(
         if result is not None and result.found:
             return result, "skyfrog", order_number
 
-        references = _order_tracking_references(state_db_path, order_number)
+        references = _order_tracking_references(mapping_store, order_number)
         if references:
             mapped_result, mapped_carrier = _search_mapped_tracking(
                 service, *references[0]
@@ -308,6 +293,7 @@ def _cached_carrier(result: JobResult, fallback: str) -> str:
 def _cached_customer_lookup(
     raw_order: str,
     state_db_path: Path,
+    mapping_store: Any,
     *,
     max_age: timedelta = timedelta(hours=24),
 ) -> tuple[JobResult, str, str] | None:
@@ -326,9 +312,7 @@ def _cached_customer_lookup(
             result = _recent_cached_result(cache, order_number, max_age)
             if result is not None:
                 return result, "skyfrog", order_number
-            references = cache.get_shopee_tracking_refs(order_number)
-            if not references:
-                references = _mapping_references_for_order(cache, order_number)
+            references = mapping_store.get_tracking_refs(order_number)
             for tracking_number, mapped_carrier in references:
                 result = _recent_cached_result(cache, tracking_number, max_age)
                 if result is not None:
@@ -346,11 +330,11 @@ def _cached_customer_lookup(
     finally:
         cache.close()
 
-
 def create_app(
     *,
     settings: Settings | None = None,
     search_service: Any | None = None,
+    mapping_store: Any | None = None,
 ) -> Flask:
     settings = settings or Settings.from_env(require_credentials=True)
     if len(settings.web_secret_key) < 32:
@@ -359,6 +343,12 @@ def create_app(
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 8 * 1024
     service = search_service or LiveSearchService(settings)
+    mappings = mapping_store or SupabaseMappingStore(
+        settings.supabase_url,
+        settings.supabase_secret_key,
+        table=settings.supabase_mapping_table,
+        timeout=min(settings.request_timeout_seconds, 15),
+    )
     customer_search_limiter = SlidingWindowLimiter(limit=10, seconds=60)
 
     @app.after_request
@@ -395,7 +385,7 @@ def create_app(
             result, carrier, display_order = _customer_lookup(
                 service,
                 raw_order,
-                settings.state_db_path,
+                mappings,
             )
         except ValueError as exc:
             return jsonify(error=str(exc)), 400
@@ -403,12 +393,23 @@ def create_app(
             SkyfrogError,
             KexError,
             InterexpressError,
+            SupabaseMappingError,
             requests.RequestException,
         ):
-            cached = _cached_customer_lookup(raw_order, settings.state_db_path)
+            try:
+                cached = _cached_customer_lookup(
+                    raw_order,
+                    settings.state_db_path,
+                    mappings,
+                )
+            except SupabaseMappingError:
+                cached = None
             if cached is None:
                 app.logger.exception("Customer carrier search failed")
-                return jsonify(error="ยังเชื่อมต่อระบบขนส่งไม่ได้ กรุณาลองใหม่อีกครั้ง"), 502
+                # Cloudflare can replace an origin 502 body with an HTML error page.
+                # A 424 preserves our JSON response while still marking the
+                # upstream carrier dependency as unavailable.
+                return jsonify(error="ยังเชื่อมต่อระบบขนส่งไม่ได้ กรุณาลองใหม่อีกครั้ง"), 424
             app.logger.warning("Carrier unavailable; serving recent cached customer status")
             result, carrier, display_order = cached
             customer_result = _customer_result(result, carrier)
@@ -419,7 +420,6 @@ def create_app(
         customer_result["lookup_order"] = display_order
         return jsonify(result=customer_result)
 
-    # Signed proof URLs are generated only for the existing Google Sheet workflow.
     @app.get("/sheet-proof/<token>")
     def sheet_proof(token: str):
         try:

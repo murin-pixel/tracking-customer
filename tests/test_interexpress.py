@@ -35,6 +35,19 @@ class FakeSession:
                 "actPickupDt": "2026-07-01T09:00:00+07:00",
                 "actDeliveryDt": "2026-07-02T22:53:00+07:00",
                 "lastStatusDt": "2026-07-02T22:53:00+07:00",
+                "shipmentTrackingDetail": [
+                    {
+                        "trackingDt": "2026-07-01T09:00:00+07:00",
+                        "statusCode": "MDE",
+                        "dcThName": "ศูนย์กระจาย คลังต้นทาง",
+                    },
+                    {
+                        "trackingDt": "2026-07-02T22:53:00+07:00",
+                        "statusCode": "POD",
+                        "dcThName": "ศูนย์ชลบุรี",
+                        "consignee": "Must not persist",
+                    },
+                ],
                 "recipientName": "Must not persist",
                 "recipientPhoneNo": "0000000000",
             }
@@ -55,6 +68,7 @@ class InterexpressClientTests(unittest.TestCase):
         self.assertEqual(result.status_code, "POD")
         self.assertEqual(result.status_th, "พัสดุจัดส่งสำเร็จ")
         self.assertEqual(result.group_name, "InterExpress")
+        self.assertEqual(result.location, "ศูนย์ชลบุรี")
         self.assertEqual(result.driver, "")
         self.assertEqual(result.raw, {})
         self.assertNotIn("Must not persist", str(result))

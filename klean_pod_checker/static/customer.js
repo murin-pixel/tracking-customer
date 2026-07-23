@@ -11,11 +11,13 @@ const historyNote = document.querySelector("#customer-history-note");
 const timeline = document.querySelector("#customer-timeline");
 const warning = document.querySelector("#customer-exception");
 const resultSeparator = document.querySelector("#customer-result-separator");
+const locationFact = document.querySelector("#customer-location-fact");
+const shipmentFacts = document.querySelector(".shipment-facts");
 
 const NOT_FOUND_GUIDANCE = "สอบถามข้อมูลเพิ่มเติม กรุณาติดต่อฝ่ายบริการลูกค้าตามช่องทางที่ท่านสั่งซื้อ";
 const LIMITED_HISTORY_NOTE = "ขนส่งส่งกลับมาเฉพาะสถานะล่าสุด ระบบจึงแสดงข้อมูลเท่าที่มี";
 const CACHED_STATUS_NOTE = "แสดงสถานะล่าสุดที่ระบบบันทึกไว้ เนื่องจากขนส่งตอบกลับชั่วคราว";
-const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
+const TRANSIENT_HTTP_STATUSES = new Set([424, 502, 503, 504, 520, 521, 522, 523, 524]);
 
 const STAGES = ["received", "in_transit", "out_for_delivery", "delivered"];
 const STAGE_LABELS = {
@@ -221,6 +223,9 @@ function renderResult(result) {
   setText("#customer-carrier-inline", result.carrier);
   setText("#customer-carrier-result", result.carrier);
   setText("#customer-status", statusLabel);
+  locationFact.classList.toggle("hidden", !result.location);
+  shipmentFacts.classList.toggle("has-location", Boolean(result.location));
+  setText("#customer-location", result.location);
 
   const dateLabel = document.querySelector("#customer-date-label");
   if (result.delivered) {

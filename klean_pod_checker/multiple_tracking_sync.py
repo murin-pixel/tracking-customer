@@ -8,7 +8,7 @@ from pathlib import Path
 import requests
 
 from .shopee import parse_multiple_tracking_sheet
-from .storage import StatusCache
+from .supabase_mapping import SupabaseMappingStore
 
 
 MULTIPLE_TRACKING_SHEET_NAME = "1 Order หลาย Tracking"
@@ -16,7 +16,7 @@ MULTIPLE_TRACKING_SHEET_NAME = "1 Order หลาย Tracking"
 
 def import_multiple_tracking_sheet(
     sheet_id: str,
-    database_path: Path,
+    mapping_store: SupabaseMappingStore,
     *,
     timeout: float = 30,
     session: requests.Session | None = None,
@@ -38,9 +38,4 @@ def import_multiple_tracking_sheet(
         references = parse_multiple_tracking_sheet(
             Path(workbook.name), sheet_name=MULTIPLE_TRACKING_SHEET_NAME
         )
-    cache = StatusCache(database_path)
-    try:
-        cache.put_shopee_tracking_refs(references)
-    finally:
-        cache.close()
-    return len(references)
+    return mapping_store.upsert_references(references)

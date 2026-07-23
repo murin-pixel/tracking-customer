@@ -1,0 +1,62 @@
+name: bedee-fulfilment
+
+services:
+  web:
+    build:
+      context: .
+      target: web
+    env_file:
+      - .env
+    environment:
+      OUTPUT_DIR: /app/outputs
+      STATE_DB_PATH: /app/data/status-cache.sqlite
+      KEX_PROOF_DIR: /app/data/kex-proofs
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8091}:8091"
+    volumes:
+      - ./runtime/data:/app/data
+      - ./runtime/outputs:/app/outputs
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=5)"
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 20s
+
+  shopee-sync:
+    profiles:
+      - shopee
+    build:
+      context: .
+      target: automation
+    env_file:
+      - .env
+    environment:
+      TZ: "${TZ:-Asia/Bangkok}"
+      SHOPEE_PROFILE: /runtime/shopee/session
+      SHOPEE_REPORT_DIRECTORY: /runtime/shopee/reports
+      SHOPEE_WORK_DIRECTORY: /runtime/shopee/work
+      SHOPEE_REPORT_MANIFEST: /runtime/shopee/reports/latest-report-manifest.json
+    volumes:
+      - ./runtime/shopee/session:/runtime/shopee/session
+      - ./runtime/shopee/reports:/runtime/shopee/reports
+      - ./runtime/shopee/work:/runtime/shopee/work
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    shm_size: 1gb
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

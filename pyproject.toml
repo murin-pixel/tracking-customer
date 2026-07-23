@@ -20,4 +20,4 @@ klean-pod-checker = "klean_pod_checker.runner:main"
 include = ["klean_pod_checker*"]
 
 [tool.setuptools.package-data]
-klean_pod_checker = ["templates/*.html", "static/*.css", "static/*.js"]
+klean_pod_checker = ["templates/*.html", "static/*"]

@@ -27,7 +27,7 @@ class KexError(RuntimeError):
 
 
 class KexClient:
-    """Read KEX tracking data and keep POD images behind the CS login."""
+    """Read KEX tracking data and keep POD images server-side."""
 
     def __init__(
         self,
@@ -81,6 +81,7 @@ class KexClient:
 
         status_code = str(latest.get("s_code") or current_icon.get("code") or "")
         status_th = str(latest.get("s_desc") or current_icon.get("desc") or "ไม่ทราบสถานะ")
+        location = _latest_status_location(statuses)
         delivered = status_code.upper() == "POD" or str(current_icon.get("code")) == "400"
         status_en = "Delivered" if delivered else status_th
 
@@ -107,6 +108,7 @@ class KexClient:
             created_at=str(shipment.get("pickup_date") or ""),
             delivery_at=str(latest.get("s_datetime") or ""),
             updated_at=str(latest.get("s_datetime") or ""),
+            location=location,
             proof_urls=proof_urls,
             checked_at=checked_at,
             raw={},
@@ -244,3 +246,13 @@ def _proof_sources(shipment: dict) -> list[str]:
         if isinstance(value, str) and value.startswith("https://"):
             values.append(value)
     return list(dict.fromkeys(values))
+
+
+def _latest_status_location(statuses: list) -> str:
+    rows = [row for row in statuses if isinstance(row, dict)]
+    rows.sort(key=lambda row: str(row.get("s_datetime") or ""), reverse=True)
+    for row in rows:
+        location = str(row.get("loc") or "").strip()
+        if location:
+            return location
+    return ""

@@ -49,6 +49,9 @@ class Settings:
     public_base_url: str = ""
     interexpress_username: str = ""
     interexpress_password: str = ""
+    supabase_url: str = ""
+    supabase_secret_key: str = ""
+    supabase_mapping_table: str = "shopee_order_mapping"
 
     @property
     def sheet_csv_url(self) -> str:
@@ -88,6 +91,11 @@ class Settings:
             public_base_url=os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/"),
             interexpress_username=os.environ.get("INTEREXPRESS_USERNAME", "").strip(),
             interexpress_password=os.environ.get("INTEREXPRESS_PASSWORD", ""),
+            supabase_url=os.environ.get("SUPABASE_URL", "").strip().rstrip("/"),
+            supabase_secret_key=os.environ.get("SUPABASE_SECRET_KEY", "").strip(),
+            supabase_mapping_table=os.environ.get(
+                "SUPABASE_MAPPING_TABLE", "shopee_order_mapping"
+            ).strip(),
         )
         if require_credentials:
             missing = []

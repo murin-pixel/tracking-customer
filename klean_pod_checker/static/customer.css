@@ -47,21 +47,21 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 .tracking-header {
-  width: min(100%, 1952px);
-  min-height: 228px;
+  width: min(calc(100% - 48px), 1440px);
+  min-height: 164px;
   margin: 0 auto;
-  padding: 28px 30px 16px;
+  padding: 20px 8px 12px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 32px;
+  gap: 24px;
 }
 
 .bedee-brand {
   display: block;
-  width: 468px;
+  width: 350px;
   max-width: 55vw;
-  padding: 9px 10px 7px;
+  padding: 7px 8px 5px;
   background: rgba(255, 255, 255, .84);
   text-decoration: none;
 }
@@ -73,35 +73,35 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 .tracking-center-label {
-  padding-top: 10px;
+  padding-top: 8px;
   color: #59647c;
-  font-size: clamp(15px, 1vw, 20px);
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: -.015em;
+  letter-spacing: 0;
 }
 
 .tracking-shell {
-  width: min(100%, 1952px);
+  width: min(calc(100% - 48px), 1440px);
   margin: 0 auto;
-  padding: 0 16px 54px;
+  padding: 0 0 44px;
 }
 
 .tracking-intro h1 {
-  margin: 6px 0 8px;
+  margin: 4px 0 6px;
   color: var(--ink);
-  font-size: clamp(42px, 3.35vw, 64px);
+  font-size: 46px;
   font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -.055em;
+  line-height: 1.12;
+  letter-spacing: 0;
 }
 
 .tracking-intro p {
   margin: 0;
   color: var(--muted);
-  font-size: clamp(17px, 1.4vw, 27px);
+  font-size: 19px;
   font-weight: 700;
   line-height: 1.45;
-  letter-spacing: -.025em;
+  letter-spacing: 0;
 }
 
 .tracking-search-card,
@@ -114,39 +114,39 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 .tracking-search-card {
-  margin-top: 30px;
-  padding: 28px;
+  margin-top: 22px;
+  padding: 22px;
 }
 
 .tracking-search-form > label {
   display: block;
-  margin-bottom: 13px;
+  margin-bottom: 9px;
   color: #39445a;
-  font-size: clamp(16px, 1vw, 20px);
+  font-size: 17px;
   font-weight: 800;
 }
 
 .tracking-search-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 210px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 12px;
 }
 
 .tracking-search-row input,
 .tracking-search-row button {
-  min-height: 70px;
-  border-radius: 13px;
+  min-height: 60px;
+  border-radius: 10px;
 }
 
 .tracking-search-row input {
   width: 100%;
   min-width: 0;
-  padding: 0 22px;
+  padding: 0 18px;
   border: 1px solid #ccd9e2;
   outline: 0;
   color: var(--ink);
   background: #fff;
-  font-size: clamp(18px, 1.2vw, 23px);
+  font-size: 19px;
   font-weight: 800;
   letter-spacing: .015em;
   text-transform: uppercase;
@@ -167,7 +167,7 @@ button { -webkit-tap-highlight-color: transparent; }
   border: 0;
   background: var(--primary);
   color: #fff;
-  font-size: clamp(18px, 1.15vw, 22px);
+  font-size: 18px;
   font-weight: 900;
   cursor: pointer;
   box-shadow: 0 9px 18px rgba(21, 26, 152, .14);
@@ -192,9 +192,9 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .tracking-results {
   display: grid;
-  grid-template-columns: minmax(0, 1.53fr) minmax(390px, 1fr);
-  gap: 28px;
-  margin-top: 28px;
+  grid-template-columns: minmax(0, 1.48fr) minmax(350px, 1fr);
+  gap: 20px;
+  margin-top: 20px;
   scroll-margin-top: 24px;
 }
 
@@ -202,37 +202,37 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .shipment-card,
 .history-card {
-  min-height: 535px;
+  min-height: 470px;
 }
 
-.shipment-card { padding: 34px; }
+.shipment-card { padding: 28px; }
 
 .shipment-card-header h2,
 .history-card h2 {
   margin: 0;
   color: var(--ink);
   font-weight: 900;
-  letter-spacing: -.045em;
+  letter-spacing: 0;
 }
 
-.shipment-card-header h2 { font-size: clamp(30px, 2.05vw, 40px); line-height: 1.2; }
+.shipment-card-header h2 { font-size: 32px; line-height: 1.2; }
 
 .shipment-card-header p {
-  margin: 10px 0 0;
+  margin: 7px 0 0;
   color: #5d6880;
-  font-size: clamp(15px, 1.05vw, 21px);
+  font-size: 17px;
   font-weight: 800;
   overflow-wrap: anywhere;
 }
 
 .shipment-warning {
-  margin-top: 24px;
-  padding: 16px 18px;
+  margin-top: 18px;
+  padding: 13px 15px;
   border: 1px solid #f0cb92;
   border-radius: 10px;
   background: #fff8e9;
   color: #805313;
-  font-size: clamp(17px, 1.05vw, 21px);
+  font-size: 17px;
   font-weight: 800;
   line-height: 1.45;
 }
@@ -242,7 +242,7 @@ button { -webkit-tap-highlight-color: transparent; }
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  margin: 42px 0 34px;
+  margin: 32px 0 27px;
   padding: 0;
   list-style: none;
 }
@@ -251,10 +251,10 @@ button { -webkit-tap-highlight-color: transparent; }
   content: "";
   position: absolute;
   z-index: 0;
-  top: 52px;
+  top: 44px;
   left: 12.5%;
   right: 12.5%;
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--mint-line) var(--progress-fill, 0%), #d5dfe8 var(--progress-fill, 0%));
 }
@@ -265,7 +265,7 @@ button { -webkit-tap-highlight-color: transparent; }
   min-width: 0;
   color: #8b96aa;
   text-align: center;
-  font-size: clamp(16px, 1.18vw, 23px);
+  font-size: 17px;
   font-weight: 900;
   line-height: 1.28;
 }
@@ -273,18 +273,18 @@ button { -webkit-tap-highlight-color: transparent; }
 .stage-icon {
   position: relative;
   display: grid;
-  width: 104px;
-  height: 104px;
-  margin: 0 auto 17px;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 12px;
   place-items: center;
-  border: 5px solid #e5ebf0;
-  border-radius: 27px;
+  border: 4px solid #e5ebf0;
+  border-radius: 22px;
   background: #f9fbfc;
   color: #8ea8a5;
   box-shadow: 0 14px 30px rgba(36, 68, 82, .055);
 }
 
-.stage-icon svg { width: 64px; height: 64px; overflow: visible; }
+.stage-icon svg { width: 55px; height: 55px; overflow: visible; }
 .stage-icon svg rect,
 .stage-icon svg path,
 .stage-icon svg circle { fill: none; stroke: currentColor; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -331,8 +331,8 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .shipment-facts > div {
   min-width: 0;
-  min-height: 108px;
-  padding: 20px;
+  min-height: 94px;
+  padding: 16px;
   border: 1px solid #d8e1eb;
   border-radius: 12px;
   background: var(--tile);
@@ -340,25 +340,25 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .shipment-facts dt {
   color: #6d788e;
-  font-size: clamp(16px, 1vw, 20px);
+  font-size: 15px;
   font-weight: 900;
   line-height: 1.35;
 }
 
 .shipment-facts dd {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--ink);
-  font-size: clamp(19px, 1.28vw, 25px);
+  font-size: 19px;
   font-weight: 900;
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
-.history-card { padding: 34px 32px; }
-.history-card h2 { font-size: clamp(28px, 1.9vw, 37px); line-height: 1.2; }
+.history-card { padding: 28px 26px; }
+.history-card h2 { font-size: 30px; line-height: 1.2; }
 
 .shipment-timeline {
-  margin: 26px 0 0;
+  margin: 20px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -374,7 +374,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .timeline-when {
   padding: 8px 15px 0 0;
   color: #647087;
-  font-size: clamp(13px, .9vw, 17px);
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -424,7 +424,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .timeline-event {
   padding: 5px 0 24px 14px;
   color: var(--ink);
-  font-size: clamp(16px, 1.1vw, 21px);
+  font-size: 17px;
   font-weight: 900;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -434,7 +434,7 @@ button { -webkit-tap-highlight-color: transparent; }
   display: block;
   margin-top: 5px;
   color: var(--muted);
-  font-size: clamp(16px, .95vw, 18px);
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -498,6 +498,193 @@ button { -webkit-tap-highlight-color: transparent; }
   font-weight: 700;
 }
 
+@media (min-width: 761px) {
+  .tracking-header {
+    width: min(calc(100% - 40px), 1280px);
+    min-height: 112px;
+    padding: 10px 4px 6px;
+    gap: 18px;
+  }
+
+  .bedee-brand {
+    width: 250px;
+    padding: 4px;
+  }
+
+  .tracking-center-label {
+    padding-top: 5px;
+    font-size: 14px;
+  }
+
+  .tracking-shell {
+    width: min(calc(100% - 40px), 1280px);
+    padding-bottom: 24px;
+  }
+
+  .tracking-intro h1 {
+    margin: 0 0 3px;
+    font-size: 34px;
+  }
+
+  .tracking-intro p {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .tracking-search-card {
+    margin-top: 14px;
+    padding: 14px;
+  }
+
+  .tracking-search-form > label {
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+
+  .tracking-search-row {
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 10px;
+  }
+
+  .tracking-search-row input,
+  .tracking-search-row button {
+    min-height: 48px;
+    border-radius: 8px;
+  }
+
+  .tracking-search-row input {
+    padding: 0 15px;
+    font-size: 16px;
+  }
+
+  .tracking-search-row button { font-size: 16px; }
+
+  .customer-error {
+    margin-top: 10px;
+    padding: 10px 13px;
+    font-size: 14px;
+  }
+
+  .tracking-results {
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  .shipment-card,
+  .history-card {
+    min-height: 350px;
+  }
+
+  .shipment-card { padding: 20px; }
+  .shipment-card-header h2 { font-size: 25px; }
+
+  .shipment-card-header p {
+    margin-top: 3px;
+    font-size: 14px;
+  }
+
+  .shipment-warning {
+    margin-top: 11px;
+    padding: 9px 11px;
+    font-size: 14px;
+  }
+
+  .tracking-progress {
+    margin: 19px 0 17px;
+  }
+
+  .tracking-progress::before {
+    top: 35px;
+    height: 5px;
+  }
+
+  .tracking-progress li { font-size: 14px; }
+
+  .stage-icon {
+    width: 70px;
+    height: 70px;
+    margin-bottom: 8px;
+    border-width: 3px;
+    border-radius: 18px;
+  }
+
+  .stage-icon svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  .stage-check {
+    top: -11px;
+    right: -10px;
+    width: 30px;
+    height: 30px;
+    border-width: 3px;
+    font-size: 18px;
+  }
+
+  .shipment-facts { gap: 8px; }
+  .shipment-facts.has-location {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .shipment-facts > div {
+    min-height: 74px;
+    padding: 11px 12px;
+    border-radius: 9px;
+  }
+
+  .shipment-facts dt { font-size: 13px; }
+
+  .shipment-facts dd {
+    margin-top: 3px;
+    font-size: 16px;
+  }
+
+  .history-card { padding: 20px; }
+  .history-card h2 { font-size: 25px; }
+
+  .shipment-timeline { margin-top: 14px; }
+
+  .timeline-item {
+    grid-template-columns: minmax(72px, .72fr) 46px minmax(0, 2.2fr);
+    min-height: 60px;
+  }
+
+  .timeline-when {
+    padding: 6px 10px 0 0;
+    font-size: 12px;
+  }
+
+  .timeline-rail::after {
+    top: 38px;
+    width: 4px;
+  }
+
+  .timeline-dot {
+    width: 38px;
+    height: 38px;
+    border-width: 3px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+
+  .timeline-event {
+    padding: 3px 0 16px 10px;
+    font-size: 15px;
+  }
+
+  .timeline-event small {
+    margin-top: 3px;
+    font-size: 13px;
+  }
+
+  .history-note {
+    margin-top: 11px;
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 1120px) {
   .tracking-results { grid-template-columns: 1fr; gap: 24px; }
   .shipment-card,
@@ -508,14 +695,15 @@ button { -webkit-tap-highlight-color: transparent; }
 
 @media (max-width: 760px) {
   .tracking-header {
+    width: 100%;
     min-height: 142px;
     padding: 22px 16px 14px;
     align-items: flex-start;
   }
   .bedee-brand { width: min(396px, 66vw); padding: 7px 8px 5px; }
   .tracking-center-label { padding-top: 8px; font-size: 14px; }
-  .tracking-shell { padding: 0 12px 38px; }
-  .tracking-intro h1 { margin-top: 8px; font-size: 34px; }
+  .tracking-shell { width: 100%; padding: 0 12px 38px; }
+  .tracking-intro h1 { margin-top: 8px; font-size: 34px; letter-spacing: 0; }
   .tracking-intro p { font-size: 15px; line-height: 1.55; }
   .tracking-search-card { margin-top: 27px; padding: 21px; }
   .tracking-search-form > label { margin-bottom: 9px; }
@@ -567,7 +755,7 @@ button { -webkit-tap-highlight-color: transparent; }
   .tracking-header { min-height: 146px; }
   .bedee-brand { width: 76vw; max-width: 300px; }
   .tracking-center-label { display: none; }
-  .tracking-intro h1 { font-size: 32px; letter-spacing: -.045em; }
+  .tracking-intro h1 { font-size: 32px; letter-spacing: 0; }
   .tracking-intro p { font-size: 15px; }
   .tracking-progress { margin-left: -9px; margin-right: -9px; }
   .tracking-progress::before { top: 31px; }

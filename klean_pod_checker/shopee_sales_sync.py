@@ -16,9 +16,12 @@ from .config import Settings
 from .multiple_tracking_sync import import_multiple_tracking_sheet
 from .sheets_sync import GoogleSheetsWriter, SheetSyncError
 from .sheets import parse_order_date
-from .shopee import extract_shopee_tracking, parse_shopee_mapping_rows
-from .shopee_report import import_shopee_report
-from .storage import StatusCache
+from .shopee import (
+    ShopeeTrackingRef,
+    extract_shopee_tracking,
+    parse_shopee_report,
+)
+from .supabase_mapping import SupabaseMappingError, SupabaseMappingStore
 
 
 LOGGER = logging.getLogger(__name__)
@@ -38,7 +41,7 @@ DEFAULT_REPORT_MANIFEST = Path(
     )
 )
 MAPPING_SHEET_RETENTION_DAYS = 45
-MAPPING_ARCHIVE_RETENTION_DAYS = 90
+SUPABASE_RETENTION_DAYS = 60
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,21 @@ def retained_mapping_rows(
             continue
         retained[(order_number.upper(), raw_tracking.strip())] = None
     return sorted(retained, key=lambda item: (item[0], item[1]))
+
+
+def mapping_rows_from_references(
+    references: list[ShopeeTrackingRef],
+) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    for item in references:
+        if item.carrier == "kex":
+            label = f"KEX_เลขพัสดุ_{item.tracking_number}"
+        elif item.carrier == "interexpress":
+            label = f"INTEREXPRESS เลขพัสดุ {item.tracking_number}"
+        else:
+            continue
+        rows.append((item.order_number, label))
+    return sorted(dict.fromkeys(rows), key=lambda item: (item[0], item[1]))
 
 
 def newest_report(report_directory: Path, report_glob: str) -> Path:
@@ -111,43 +129,42 @@ def sync_latest_report(
     *,
     report_directory: Path,
     report_glob: str,
-    database_path: Path,
+    mapping_store: SupabaseMappingStore,
     manifest_path: Path | None = None,
     sheet_id: str = "",
 ) -> ShopeeSalesSyncResult:
     reports = reports_from_manifest(manifest_path, report_directory) if manifest_path else ()
     if not reports:
         reports = (newest_report(report_directory, report_glob),)
-    imported_references = sum(import_shopee_report(report, database_path) for report in reports)
-    current_mapping_rows = list(
-        dict.fromkeys(
-            mapping
+    references = list(
+        {
+            (item.order_number, item.tracking_number): item
             for report in reports
-            for mapping in parse_shopee_mapping_rows(report)
-        )
+            for item in parse_shopee_report(report)
+        }.values()
     )
-    cache = StatusCache(database_path)
-    try:
-        today = datetime.now().astimezone().date()
-        merged_rows = list(
-            dict.fromkeys(cache.get_shopee_mapping_rows() + current_mapping_rows)
-        )
-        archive_cutoff = today - timedelta(days=MAPPING_ARCHIVE_RETENTION_DAYS - 1)
-        archive_rows = retained_mapping_rows(merged_rows, cutoff=archive_cutoff)
-        cache.replace_shopee_mapping_rows(archive_rows)
-        cache.prune_shopee_tracking_refs_before(archive_cutoff.strftime("%y%m%d"))
-        sheet_cutoff = today - timedelta(days=MAPPING_SHEET_RETENTION_DAYS - 1)
-        mapping_rows = tuple(retained_mapping_rows(archive_rows, cutoff=sheet_cutoff))
-    finally:
-        cache.close()
+    imported_references = mapping_store.upsert_references(references)
+    today = datetime.now().astimezone().date()
+    retention_cutoff = today - timedelta(days=SUPABASE_RETENTION_DAYS - 1)
+    mapping_store.prune_before(retention_cutoff.strftime("%y%m%d"))
     imported_multiple_tracking_references = 0
     if sheet_id:
         try:
             imported_multiple_tracking_references = import_multiple_tracking_sheet(
-                sheet_id, database_path
+                sheet_id, mapping_store
             )
-        except (OSError, ValueError, requests.RequestException) as error:
+        except (
+            OSError,
+            ValueError,
+            SupabaseMappingError,
+            requests.RequestException,
+        ) as error:
             LOGGER.warning("Grouped tracking sheet sync failed: %s", error)
+    sheet_cutoff = today - timedelta(days=MAPPING_SHEET_RETENTION_DAYS - 1)
+    supabase_references = mapping_store.list_references_since(
+        sheet_cutoff.strftime("%y%m%d")
+    )
+    mapping_rows = tuple(mapping_rows_from_references(supabase_references))
     return ShopeeSalesSyncResult(
         report_path=reports[-1],
         imported_references=imported_references,
@@ -169,28 +186,35 @@ def main() -> None:
         default=os.environ.get("SHEET_ID", ""),
         help="Google Sheet ที่มีแท็บ 1 Order หลาย Tracking",
     )
-    parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("data/status-cache.sqlite"),
-    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    settings = Settings.from_env(require_credentials=False)
+    mapping_store = SupabaseMappingStore(
+        settings.supabase_url,
+        settings.supabase_secret_key,
+        table=settings.supabase_mapping_table,
+    )
     try:
         result = sync_latest_report(
             report_directory=args.report_directory,
             report_glob=args.report_glob,
-            database_path=args.database,
+            mapping_store=mapping_store,
             manifest_path=args.manifest,
             sheet_id=args.sheet_id,
         )
-    except (FileNotFoundError, ValueError) as error:
+    except (
+        FileNotFoundError,
+        ValueError,
+        SupabaseMappingError,
+        requests.RequestException,
+    ) as error:
         LOGGER.error("Shopee Sell Report sync failed: %s", error)
         raise SystemExit(2) from error
+    finally:
+        mapping_store.close()
 
     mapping_updated = 0
-    settings = Settings.from_env(require_credentials=False)
     writer = GoogleSheetsWriter(settings)
     try:
         if writer.enabled:

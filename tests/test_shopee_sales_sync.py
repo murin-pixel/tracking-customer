@@ -7,13 +7,31 @@ from datetime import date
 from pathlib import Path
 
 from klean_pod_checker.shopee_sales_sync import (
+    mapping_rows_from_references,
     newest_report,
     reports_from_manifest,
     retained_mapping_rows,
 )
+from klean_pod_checker.shopee import ShopeeTrackingRef
 
 
 class ShopeeSalesSyncTests(unittest.TestCase):
+    def test_formats_supabase_references_for_google_mapping_sheet(self):
+        rows = mapping_rows_from_references(
+            [
+                ShopeeTrackingRef("260706ORDER001", "ANBL000000001", "kex"),
+                ShopeeTrackingRef("260706ORDER002", "ANBL26F000000002", "interexpress"),
+                ShopeeTrackingRef("260706ORDER003", "ANBL000000003", "auto"),
+            ]
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                ("260706ORDER001", "KEX_เลขพัสดุ_ANBL000000001"),
+                ("260706ORDER002", "INTEREXPRESS เลขพัสดุ ANBL26F000000002"),
+            ],
+        )
     def test_mapping_sheet_keeps_45_days_and_excludes_klean(self):
         rows = [
             ("260602OLDTRACK", "KEX_เลขพัสดุ_ANBL000000001"),

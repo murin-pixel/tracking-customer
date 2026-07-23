@@ -11,7 +11,7 @@ WorkingDirectory=/opt/klean-pod-checker
 EnvironmentFile=/opt/klean-pod-checker/.env
 Environment=SHOPEE_REPORT_DIRECTORY=/home/milk/kleanandkare-shopee/sales-reports
 Environment=SHOPEE_REPORT_GLOB=Order.all.*.xlsx
-ExecStart=/opt/klean-pod-checker/.venv/bin/python -m klean_pod_checker.shopee_sales_sync --database /opt/klean-pod-checker/data/status-cache.sqlite
+ExecStart=/opt/klean-pod-checker/.venv/bin/python -m klean_pod_checker.shopee_sales_sync
 Nice=10
 NoNewPrivileges=true
 PrivateTmp=true
