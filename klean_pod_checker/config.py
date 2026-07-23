@@ -40,7 +40,6 @@ class Settings:
     concurrency: int
     request_delay_seconds: float
     output_dir: Path
-    state_db_path: Path
     web_secret_key: str
     google_sheets_webhook_url: str
     google_sheets_webhook_secret: str
@@ -52,6 +51,7 @@ class Settings:
     supabase_url: str = ""
     supabase_secret_key: str = ""
     supabase_mapping_table: str = "shopee_order_mapping"
+    supabase_status_table: str = "tracking_status_cache"
 
     @property
     def sheet_csv_url(self) -> str:
@@ -76,9 +76,6 @@ class Settings:
                 0.0, float(os.environ.get("REQUEST_DELAY_SECONDS", "0.10"))
             ),
             output_dir=_path(os.environ.get("OUTPUT_DIR", "./outputs")),
-            state_db_path=_path(
-                os.environ.get("STATE_DB_PATH", "./data/status-cache.sqlite")
-            ),
             web_secret_key=os.environ.get("WEB_SECRET_KEY", "").strip(),
             google_sheets_webhook_url=os.environ.get(
                 "GOOGLE_SHEETS_WEBHOOK_URL", ""
@@ -95,6 +92,9 @@ class Settings:
             supabase_secret_key=os.environ.get("SUPABASE_SECRET_KEY", "").strip(),
             supabase_mapping_table=os.environ.get(
                 "SUPABASE_MAPPING_TABLE", "shopee_order_mapping"
+            ).strip(),
+            supabase_status_table=os.environ.get(
+                "SUPABASE_STATUS_TABLE", "tracking_status_cache"
             ).strip(),
         )
         if require_credentials:

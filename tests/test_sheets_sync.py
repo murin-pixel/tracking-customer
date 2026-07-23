@@ -42,7 +42,6 @@ def settings():
         concurrency=1,
         request_delay_seconds=0,
         output_dir=Path("outputs"),
-        state_db_path=Path("data/cache.sqlite"),
         web_secret_key="x" * 64,
         google_sheets_webhook_url="https://script.google.test/macros/s/id/exec",
         google_sheets_webhook_secret="secret",

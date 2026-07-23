@@ -6,7 +6,6 @@ import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import requests
@@ -19,8 +18,8 @@ from .models import JobResult
 from .proof_tokens import local_kex_proof_parts, read_sheet_proof_token
 from .sheets import normalize_tracking_input
 from .skyfrog import SkyfrogClient, SkyfrogError
-from .storage import StatusCache
 from .supabase_mapping import SupabaseMappingError, SupabaseMappingStore
+from .supabase_status_cache import SupabaseStatusCache, SupabaseStatusCacheError
 
 
 class SlidingWindowLimiter:
@@ -45,8 +44,9 @@ class SlidingWindowLimiter:
 class LiveSearchService:
     """Reuse carrier clients safely inside each web process."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, status_cache: Any) -> None:
         self.settings = settings
+        self.status_cache = status_cache
         self._client: SkyfrogClient | None = None
         self._kex_client = KexClient(
             settings.kex_proof_pin,
@@ -101,11 +101,11 @@ class LiveSearchService:
             raise last_error
 
     def _cache(self, result: JobResult) -> None:
-        cache = StatusCache(self.settings.state_db_path)
         try:
-            cache.put(result)
-        finally:
-            cache.close()
+            self.status_cache.put(result)
+        except SupabaseStatusCacheError:
+            # A cache outage must not hide a successful live carrier result.
+            pass
 
 
 def _client_ip() -> str:
@@ -265,7 +265,7 @@ def _customer_lookup(
 
 
 def _recent_cached_result(
-    cache: StatusCache, order_number: str, max_age: timedelta
+    cache: Any, order_number: str, max_age: timedelta
 ) -> JobResult | None:
     result = cache.get(order_number)
     if result is None or not result.found or result.error or not result.checked_at:
@@ -292,49 +292,46 @@ def _cached_carrier(result: JobResult, fallback: str) -> str:
 
 def _cached_customer_lookup(
     raw_order: str,
-    state_db_path: Path,
+    cache: Any,
     mapping_store: Any,
     *,
     max_age: timedelta = timedelta(hours=24),
 ) -> tuple[JobResult, str, str] | None:
     """Return a recent sanitized lookup source when a carrier is unavailable."""
     candidate = re.sub(r"\s+", "", raw_order or "").lstrip("#").upper()
-    cache = StatusCache(state_db_path)
     try:
-        try:
-            carrier, order_number = normalize_tracking_input(raw_order, "auto")
-        except ValueError:
-            if not KEX_TRACKING_RE.fullmatch(candidate):
-                return None
-            order_number, carrier = candidate, "auto"
-
-        if carrier == "skyfrog":
-            result = _recent_cached_result(cache, order_number, max_age)
-            if result is not None:
-                return result, "skyfrog", order_number
-            references = mapping_store.get_tracking_refs(order_number)
-            for tracking_number, mapped_carrier in references:
-                result = _recent_cached_result(cache, tracking_number, max_age)
-                if result is not None:
-                    return (
-                        result,
-                        _cached_carrier(result, mapped_carrier),
-                        order_number,
-                    )
+        carrier, order_number = normalize_tracking_input(raw_order, "auto")
+    except ValueError:
+        if not KEX_TRACKING_RE.fullmatch(candidate):
             return None
+        order_number, carrier = candidate, "auto"
 
+    if carrier == "skyfrog":
         result = _recent_cached_result(cache, order_number, max_age)
-        if result is None:
-            return None
-        return result, _cached_carrier(result, carrier), order_number
-    finally:
-        cache.close()
+        if result is not None:
+            return result, "skyfrog", order_number
+        references = mapping_store.get_tracking_refs(order_number)
+        for tracking_number, mapped_carrier in references:
+            result = _recent_cached_result(cache, tracking_number, max_age)
+            if result is not None:
+                return (
+                    result,
+                    _cached_carrier(result, mapped_carrier),
+                    order_number,
+                )
+        return None
+
+    result = _recent_cached_result(cache, order_number, max_age)
+    if result is None:
+        return None
+    return result, _cached_carrier(result, carrier), order_number
 
 def create_app(
     *,
     settings: Settings | None = None,
     search_service: Any | None = None,
     mapping_store: Any | None = None,
+    status_cache: Any | None = None,
 ) -> Flask:
     settings = settings or Settings.from_env(require_credentials=True)
     if len(settings.web_secret_key) < 32:
@@ -342,7 +339,13 @@ def create_app(
 
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 8 * 1024
-    service = search_service or LiveSearchService(settings)
+    statuses = status_cache or SupabaseStatusCache(
+        settings.supabase_url,
+        settings.supabase_secret_key,
+        table=settings.supabase_status_table,
+        timeout=min(settings.request_timeout_seconds, 15),
+    )
+    service = search_service or LiveSearchService(settings, statuses)
     mappings = mapping_store or SupabaseMappingStore(
         settings.supabase_url,
         settings.supabase_secret_key,
@@ -394,15 +397,16 @@ def create_app(
             KexError,
             InterexpressError,
             SupabaseMappingError,
+            SupabaseStatusCacheError,
             requests.RequestException,
         ):
             try:
                 cached = _cached_customer_lookup(
                     raw_order,
-                    settings.state_db_path,
+                    statuses,
                     mappings,
                 )
-            except SupabaseMappingError:
+            except (SupabaseMappingError, SupabaseStatusCacheError):
                 cached = None
             if cached is None:
                 app.logger.exception("Customer carrier search failed")

@@ -7,7 +7,6 @@ import requests
 
 from klean_pod_checker.config import Settings
 from klean_pod_checker.models import JobResult
-from klean_pod_checker.storage import StatusCache
 from klean_pod_checker.webapp import _customer_stage, create_app
 
 
@@ -89,6 +88,21 @@ class FakeMappingStore:
         return None
 
 
+class FakeStatusCache:
+    def __init__(self):
+        self.results = {}
+
+    def get(self, order_number):
+        return self.results.get(order_number)
+
+    def get_final(self, order_number):
+        result = self.get(order_number)
+        return result if result is not None and result.final else None
+
+    def put(self, result):
+        self.results[result.order_number] = result
+
+
 class WebAppTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -104,7 +118,6 @@ class WebAppTests(unittest.TestCase):
             concurrency=1,
             request_delay_seconds=0,
             output_dir=root / "outputs",
-            state_db_path=root / "data" / "cache.sqlite",
             web_secret_key="x" * 64,
             google_sheets_webhook_url="https://example.test/webhook",
             google_sheets_webhook_secret="sync-secret",
@@ -114,10 +127,12 @@ class WebAppTests(unittest.TestCase):
         )
         self.search = FakeSearchService()
         self.mappings = FakeMappingStore()
+        self.statuses = FakeStatusCache()
         self.app = create_app(
             settings=self.settings,
             search_service=self.search,
             mapping_store=self.mappings,
+            status_cache=self.statuses,
         )
         self.app.testing = True
         self.client = self.app.test_client()
@@ -318,14 +333,12 @@ class WebAppTests(unittest.TestCase):
             customer="Sensitive Customer Name",
             raw={"private": "must-not-leak"},
         )
-        cache = StatusCache(self.settings.state_db_path)
-        try:
-            cache.put(cached_result)
-        finally:
-            cache.close()
+        cache = FakeStatusCache()
+        cache.put(cached_result)
         app = create_app(
             settings=self.settings,
             search_service=UnavailableSearchService(),
+            status_cache=cache,
         )
 
         response = app.test_client().post(
@@ -351,14 +364,12 @@ class WebAppTests(unittest.TestCase):
             group_name="KLEAN&KARE",
             checked_at=datetime.now().astimezone().isoformat(timespec="seconds"),
         )
-        cache = StatusCache(self.settings.state_db_path)
-        try:
-            cache.put(cached_result)
-        finally:
-            cache.close()
+        cache = FakeStatusCache()
+        cache.put(cached_result)
         app = create_app(
             settings=self.settings,
             search_service=UnavailableSearchService(),
+            status_cache=cache,
         )
 
         response = app.test_client().post(
@@ -383,14 +394,12 @@ class WebAppTests(unittest.TestCase):
                 timespec="seconds"
             ),
         )
-        cache = StatusCache(self.settings.state_db_path)
-        try:
-            cache.put(cached_result)
-        finally:
-            cache.close()
+        cache = FakeStatusCache()
+        cache.put(cached_result)
         app = create_app(
             settings=self.settings,
             search_service=UnavailableSearchService(),
+            status_cache=cache,
         )
 
         response = app.test_client().post(

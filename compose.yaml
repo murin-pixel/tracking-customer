@@ -9,12 +9,11 @@ services:
       - .env
     environment:
       OUTPUT_DIR: /app/outputs
-      STATE_DB_PATH: /app/data/status-cache.sqlite
-      KEX_PROOF_DIR: /app/data/kex-proofs
+      KEX_PROOF_DIR: /app/proofs/kex
     ports:
       - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8091}:8091"
     volumes:
-      - ./runtime/data:/app/data
+      - ./runtime/proofs:/app/proofs
       - ./runtime/outputs:/app/outputs
     init: true
     read_only: true

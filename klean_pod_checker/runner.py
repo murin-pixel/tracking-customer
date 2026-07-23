@@ -15,7 +15,7 @@ from .report import write_reports
 from .sheets import extract_order_refs, fetch_sheet_csv, normalize_tracking_input, parse_order_date
 from .sheets_sync import GoogleSheetsWriter
 from .skyfrog import SkyfrogClient
-from .storage import StatusCache
+from .supabase_status_cache import SupabaseStatusCache, SupabaseStatusCacheError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,13 +55,22 @@ def run(args: argparse.Namespace) -> dict[str, Path]:
         raise RuntimeError("ไม่พบเลขออเดอร์ KLEAN&KARE หรือพัสดุ KEX ในข้อมูลต้นทาง")
 
     print(f"พบรายการติดตามไม่ซ้ำ {len(refs)} รายการ", flush=True)
-    cache = StatusCache(settings.state_db_path)
+    cache = SupabaseStatusCache(
+        settings.supabase_url,
+        settings.supabase_secret_key,
+        table=settings.supabase_status_table,
+        timeout=min(settings.request_timeout_seconds, 15),
+    )
     master: SkyfrogClient | None = None
     try:
         results: dict[str, JobResult] = {}
         pending: list[OrderRef] = []
         for ref in refs:
-            cached = cache.get_final(ref.order_number) if args.skip_final else None
+            cached = (
+                _cache_get(cache, ref.order_number, final_only=True)
+                if args.skip_final
+                else None
+            )
             if cached is not None:
                 results[ref.order_number] = cached
             else:
@@ -91,7 +100,7 @@ def run(args: argparse.Namespace) -> dict[str, Path]:
                     flush=True,
                 )
                 for ref in skyfrog_refs:
-                    cached = cache.get(ref.order_number)
+                    cached = _cache_get(cache, ref.order_number)
                     result = (
                         cached
                         if cached is not None and not cached.error
@@ -191,7 +200,7 @@ def _query_skyfrog_orders(
     refs: list[OrderRef],
     results: dict[str, JobResult],
     master: SkyfrogClient,
-    cache: StatusCache,
+    cache: SupabaseStatusCache,
     *,
     concurrency: int,
 ) -> None:
@@ -225,7 +234,7 @@ def _query_skyfrog_orders(
             results[ref.order_number] = result
             with cache_lock:
                 if not result.error:
-                    cache.put(result)
+                    _cache_put(cache, result)
             completed += 1
             if completed == 1 or completed % 10 == 0 or completed == total:
                 print(f"ตรวจแล้ว {completed}/{total}", flush=True)
@@ -235,7 +244,7 @@ def _query_kex_orders(
     refs: list[OrderRef],
     results: dict[str, JobResult],
     settings: Settings,
-    cache: StatusCache,
+    cache: SupabaseStatusCache,
     *,
     concurrency: int,
 ) -> None:
@@ -273,7 +282,7 @@ def _query_kex_orders(
             results[ref.order_number] = result
             with cache_lock:
                 if not result.error:
-                    cache.put(result)
+                    _cache_put(cache, result)
             completed += 1
             if completed == 1 or completed % 10 == 0 or completed == total:
                 print(f"ตรวจ KEX แล้ว {completed}/{total}", flush=True)
@@ -283,7 +292,7 @@ def _query_interexpress_orders(
     refs: list[OrderRef],
     results: dict[str, JobResult],
     settings: Settings,
-    cache: StatusCache,
+    cache: SupabaseStatusCache,
     *,
     concurrency: int,
 ) -> None:
@@ -321,7 +330,7 @@ def _query_interexpress_orders(
             results[ref.order_number] = result
             with cache_lock:
                 if not result.error:
-                    cache.put(result)
+                    _cache_put(cache, result)
             completed += 1
             if completed == 1 or completed % 10 == 0 or completed == total:
                 print(f"ตรวจ InterExpress แล้ว {completed}/{total}", flush=True)
@@ -337,6 +346,23 @@ def _print_summary(rows, paths: dict[str, Path]) -> None:
     )
     print(f"CSV: {paths['latest_csv']}", flush=True)
     print(f"HTML: {paths['latest_html']}", flush=True)
+
+
+def _cache_get(
+    cache: SupabaseStatusCache, order_number: str, *, final_only: bool = False
+) -> JobResult | None:
+    try:
+        return cache.get_final(order_number) if final_only else cache.get(order_number)
+    except SupabaseStatusCacheError as exc:
+        print(f"WARNING: อ่าน Supabase status cache ไม่สำเร็จ: {exc}", file=sys.stderr)
+        return None
+
+
+def _cache_put(cache: SupabaseStatusCache, result: JobResult) -> None:
+    try:
+        cache.put(result)
+    except SupabaseStatusCacheError as exc:
+        print(f"WARNING: บันทึก Supabase status cache ไม่สำเร็จ: {exc}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:

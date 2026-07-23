@@ -14,7 +14,7 @@
 - แปลงเลขคำสั่งซื้อ Shopee เป็นเลขพัสดุจากข้อมูล Sell Report ที่นำเข้าแล้ว
 - ตรวจ Skyfrog, KEX และ InterExpress
 - นำเข้า Shopee Sell Report ด้วย Playwright/Chromium
-- เก็บ Shopee Mapping ใน Supabase และเก็บเฉพาะ status cache ใน SQLite
+- เก็บ Shopee Mapping และ status cache ใน Supabase
 - เขียนสถานะกลับ Google Sheet ผ่าน Apps Script webhook
 - ตั้งเวลาทำงานด้วย systemd timers
 
@@ -30,8 +30,7 @@ Gunicorn / Flask :8091
         +-- Skyfrog API
         +-- KEX tracking
         +-- InterExpress API
-        +-- Supabase: Shopee order mapping
-        +-- SQLite: status cache เท่านั้น
+        +-- Supabase: Shopee mapping + status cache
         +-- Shopee Sell Report importer
         +-- Google Sheet / Apps Script
 ```
@@ -39,7 +38,6 @@ Gunicorn / Flask :8091
 ข้อมูล runtime ต่อไปนี้ไม่อยู่ใน GitHub และต้องสำรองแยกอย่างปลอดภัย:
 
 - `.env`
-- `data/status-cache.sqlite`
 - `data/kex-proofs/`
 - `outputs/`
 - Shopee browser profile และไฟล์ Sell Report
@@ -53,7 +51,7 @@ Gunicorn / Flask :8091
 - Nginx และ Certbot สำหรับ HTTPS
 
 สำหรับ Hostinger ต้องใช้ **Hostinger VPS** ไม่ใช่ Shared Web Hosting เพราะระบบมี background jobs,
-SQLite ที่เขียนข้อมูล, Gunicorn และ Chromium แบบ persistent profile โดย Hostinger มี
+Gunicorn และ Chromium แบบ persistent profile โดย Hostinger มี
 [Ubuntu 24.04 with Docker template](https://www.hostinger.com/support/8306612-how-to-use-the-docker-vps-template-at-hostinger/)
 ให้เลือกได้ แต่ขั้นตอนด้านล่างใช้ Ubuntu + systemd เพื่อให้ย้ายงานทั้งหมดจาก Pi ได้ตรงกับระบบเดิม
 
@@ -96,7 +94,7 @@ nano .env
 สร้างโฟลเดอร์ runtime ซึ่งถูก ignore จาก Git และกำหนดสิทธิ์ให้ user ภายใน container:
 
 ```bash
-mkdir -p runtime/data runtime/outputs \
+mkdir -p runtime/proofs runtime/outputs \
   runtime/shopee/session runtime/shopee/reports runtime/shopee/work
 chown -R 10001:10001 runtime
 ```
@@ -111,7 +109,7 @@ curl -fsS http://127.0.0.1:8091/health
 ```
 
 ค่าเริ่มต้นจะ bind ที่ `127.0.0.1:8091` ให้วาง Nginx หรือ Caddy ด้านหน้าเพื่อทำ HTTPS
-ห้ามเปิด `.env`, `runtime/data`, หลักฐาน KEX หรือ Shopee profile ต่อสาธารณะ
+ห้ามเปิด `.env`, `runtime/proofs`, หลักฐาน KEX หรือ Shopee profile ต่อสาธารณะ
 
 เมื่อต้องการย้ายงานดาวน์โหลด Shopee รายชั่วโมง ให้คัดลอก browser profile ที่ล็อกอินแล้ว
 เข้า `runtime/shopee/session/` ผ่าน SSH โดยตรง แล้วเปิด profile `shopee`:
@@ -150,7 +148,7 @@ ssh root@YOUR_VPS_IP
 apt update
 apt install -y git python3 python3-venv nodejs npm unzip \
   xvfb openbox x11vnc novnc websockify nginx certbot python3-certbot-nginx \
-  ufw sqlite3 rsync
+  ufw rsync
 adduser --disabled-password --gecos "" milk
 mkdir -p /opt/klean-pod-checker
 chown milk:milk /opt/klean-pod-checker
@@ -199,14 +197,14 @@ sudo -u milk nano .env
 - `SKYFROG_CUSTOMER_CODE`, `SKYFROG_USERNAME`, `SKYFROG_PASSWORD`
 - `KEX_PROOF_PIN`
 - `INTEREXPRESS_USERNAME`, `INTEREXPRESS_PASSWORD`
-- `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_MAPPING_TABLE`
+- `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_MAPPING_TABLE`, `SUPABASE_STATUS_TABLE`
 - `WEB_SECRET_KEY` สร้างด้วย `openssl rand -hex 32`
 - `PUBLIC_BASE_URL`
 - `GOOGLE_SHEETS_WEBHOOK_URL`, `GOOGLE_SHEETS_WEBHOOK_SECRET`
 
 ห้ามส่ง `.env` ผ่าน GitHub, chat หรือ email
 
-### 4.1 สร้าง Supabase Mapping
+### 4.1 สร้างตาราง Supabase
 
 สร้าง Supabase project แล้วเปิด SQL Editor จากนั้นรันไฟล์:
 
@@ -215,24 +213,17 @@ supabase/schema.sql
 ```
 
 ใช้ secret key หรือ legacy service-role key เฉพาะใน `.env` ของเซิร์ฟเวอร์ ห้ามใส่ key
-ใน JavaScript หรือ GitHub ตารางเปิด RLS และไม่มี policy สำหรับ browser
-
-เมื่อตั้งค่าครั้งแรก ให้ย้าย Mapping เดิมจาก SQLite ไป Supabase หนึ่งครั้ง:
-
-```bash
-sudo -u milk .venv/bin/python -m klean_pod_checker.migrate_sqlite_mapping \
-  --database data/status-cache.sqlite
-```
-
-ตรวจข้อมูลใน Supabase Table Editor ก่อนเปิดใช้เว็บเวอร์ชัน Supabase
+ใน JavaScript หรือ GitHub ตาราง Mapping และ status cache เปิด RLS และไม่มี policy
+สำหรับ browser ระบบบันทึก cache เฉพาะเลขติดตาม สถานะ เวลา และตำแหน่ง โดยไม่เก็บ
+ชื่อลูกค้า ที่อยู่ สินค้า พนักงาน รูปหลักฐาน หรือข้อมูลดิบจากขนส่ง
 
 ### 5. ย้ายข้อมูล runtime จากเครื่องเดิม
 
 หยุดการเขียนข้อมูลบนเครื่องเดิมชั่วคราว แล้วส่งผ่าน SSH โดยตรง ไม่ผ่าน GitHub:
 
 ```bash
-rsync -a --info=progress2 /opt/klean-pod-checker/data/ \
-  milk@YOUR_VPS_IP:/opt/klean-pod-checker/data/
+rsync -a --info=progress2 /opt/klean-pod-checker/data/kex-proofs/ \
+  milk@YOUR_VPS_IP:/opt/klean-pod-checker/data/kex-proofs/
 rsync -a --info=progress2 /home/milk/kleanandkare-shopee/ \
   milk@YOUR_VPS_IP:/home/milk/kleanandkare-shopee/
 ```
@@ -340,10 +331,10 @@ node --check klean_pod_checker/download_shopee_report.js
 ## Security checklist
 
 - Repository เป็น public จึงต้องตรวจ secret scan ก่อน push ทุกครั้ง
-- ห้าม commit `.env`, SQLite, proof images, reports หรือ Shopee browser profile
+- ห้าม commit `.env`, proof images, reports หรือ Shopee browser profile
 - ห้ามใช้ Supabase secret/service-role key ใน browser หรือ source code
 - เปิด firewall เฉพาะ 22, 80 และ 443
 - ใช้ SSH key และปิด password login หลังตรวจว่าสามารถเข้า VPS ได้
-- สำรอง SQLite, proof images และ Shopee profile แบบเข้ารหัส
+- สำรองข้อมูล Supabase, proof images และ Shopee profile แบบเข้ารหัส
 - ไม่แสดงชื่อลูกค้า ที่อยู่ หรือสินค้าในหน้า public
 - หมุน credentials ใหม่ทันทีหาก `.env` หรือ Shopee profile หลุด

@@ -15,8 +15,8 @@ COPY pyproject.toml README.md ./
 COPY klean_pod_checker ./klean_pod_checker
 
 RUN python -m pip install --no-cache-dir . \
-    && mkdir -p /app/data /app/outputs \
-    && chown -R app:app /app/data /app/outputs
+    && mkdir -p /app/proofs /app/outputs \
+    && chown -R app:app /app/proofs /app/outputs
 
 USER app
 
