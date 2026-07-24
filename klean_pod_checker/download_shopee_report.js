@@ -242,7 +242,10 @@ async function main() {
     }
 
     const downloadPromise = page.waitForEvent("download", { timeout: 60_000 });
-    await reportButton.evaluate(button => button.click());
+    // Shopee now requires a trusted user gesture before it starts the file
+    // download. Calling HTMLElement.click() through evaluate() creates an
+    // untrusted DOM event and leaves the bot waiting until timeout.
+    await reportButton.click();
     const reports = await saveReportDownload(await downloadPromise);
     console.log(JSON.stringify({ reports, parts: reports.length }));
   } finally {
