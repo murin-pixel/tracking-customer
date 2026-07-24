@@ -25,7 +25,7 @@ customer browser
         |
    Nginx + HTTPS
         |
-Gunicorn / Flask :8091
+Gunicorn / Flask :8092
         |
         +-- Skyfrog API
         +-- KEX tracking
@@ -70,10 +70,10 @@ cp .env.example .env
 
 ```bash
 .venv/bin/gunicorn --workers 2 --threads 2 --timeout 90 \
-  --bind 127.0.0.1:8091 klean_pod_checker.wsgi:app
+  --bind 127.0.0.1:8092 klean_pod_checker.wsgi:app
 ```
 
-ตรวจ health check ที่ `http://127.0.0.1:8091/health`
+ตรวจ health check ที่ `http://127.0.0.1:8092/health`
 
 ## Deploy ด้วย Docker Compose
 
@@ -105,10 +105,10 @@ chown -R 10001:10001 runtime
 docker compose build web
 docker compose up -d web
 docker compose ps
-curl -fsS http://127.0.0.1:8091/health
+curl -fsS http://127.0.0.1:8092/health
 ```
 
-ค่าเริ่มต้นจะ bind ที่ `127.0.0.1:8091` ให้วาง Nginx หรือ Caddy ด้านหน้าเพื่อทำ HTTPS
+ค่าเริ่มต้นจะ bind ที่ `127.0.0.1:8092` ให้วาง Nginx หรือ Caddy ด้านหน้าเพื่อทำ HTTPS
 ห้ามเปิด `.env`, `runtime/proofs`, หลักฐาน KEX หรือ Shopee profile ต่อสาธารณะ
 
 เมื่อต้องการย้ายงานดาวน์โหลด Shopee รายชั่วโมง ให้คัดลอก browser profile ที่ล็อกอินแล้ว
@@ -255,7 +255,7 @@ systemctl enable --now kleanandkare-shopee-report.timer
 ```bash
 systemctl --no-pager --full status klean-pod-web.service
 systemctl list-timers --all | grep -E 'klean|shopee'
-curl -fsS http://127.0.0.1:8091/health
+curl -fsS http://127.0.0.1:8092/health
 ```
 
 ### 7. Login Shopee อย่างปลอดภัย

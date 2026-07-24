@@ -20,9 +20,9 @@ RUN python -m pip install --no-cache-dir . \
 
 USER app
 
-EXPOSE 8091
+EXPOSE 8092
 
-CMD ["gunicorn", "--workers", "2", "--threads", "2", "--timeout", "90", "--bind", "0.0.0.0:8091", "--access-logfile", "-", "--error-logfile", "-", "klean_pod_checker.wsgi:app"]
+CMD ["gunicorn", "--workers", "2", "--threads", "2", "--timeout", "90", "--bind", "0.0.0.0:8092", "--access-logfile", "-", "--error-logfile", "-", "klean_pod_checker.wsgi:app"]
 
 
 FROM web AS automation
