@@ -29,11 +29,30 @@ const THAI_MONTHS = [
 function writeAutomationStatus(status, code = "") {
   try {
     fs.mkdirSync(reportsDirectory, { recursive: true });
+    let previous = {};
+    try {
+      previous = JSON.parse(fs.readFileSync(automationStatusFile, "utf8"));
+    } catch {
+      previous = {};
+    }
+    const checkedAt = new Date().toISOString();
+    const recoveredSession = status === "ok" && previous.code === "session_expired";
+    const newlyExpiredSession = (
+      status === "error"
+      && code === "session_expired"
+      && previous.code !== "session_expired"
+    );
     const temporary = `${automationStatusFile}.${process.pid}.tmp`;
     fs.writeFileSync(temporary, JSON.stringify({
       status,
       code,
-      checked_at: new Date().toISOString(),
+      checked_at: checkedAt,
+      last_login_at: recoveredSession
+        ? checkedAt
+        : String(previous.last_login_at || ""),
+      session_expired_at: newlyExpiredSession
+        ? checkedAt
+        : String(previous.session_expired_at || ""),
     }));
     fs.renameSync(temporary, automationStatusFile);
   } catch {
