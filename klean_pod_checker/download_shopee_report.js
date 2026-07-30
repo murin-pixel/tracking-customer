@@ -13,6 +13,7 @@ const reportsDirectory = process.env.SHOPEE_REPORT_DIRECTORY || "/home/milk/klea
 const workDirectory = process.env.SHOPEE_WORK_DIRECTORY || "/home/milk/kleanandkare-shopee/work-session";
 const reportManifest = process.env.SHOPEE_REPORT_MANIFEST
   || path.join(reportsDirectory, "latest-report-manifest.json");
+const automationStatusFile = path.join(reportsDirectory, "automation-status.json");
 const requestedStartDate = (process.env.SHOPEE_REPORT_START || "").trim();
 const requestedEndDate = (process.env.SHOPEE_REPORT_END || "").trim();
 const downloadExistingRequestedReport = process.env.SHOPEE_DOWNLOAD_EXISTING === "1";
@@ -24,6 +25,22 @@ const THAI_MONTHS = [
   "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
 ];
+
+function writeAutomationStatus(status, code = "") {
+  try {
+    fs.mkdirSync(reportsDirectory, { recursive: true });
+    const temporary = `${automationStatusFile}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify({
+      status,
+      code,
+      checked_at: new Date().toISOString(),
+    }));
+    fs.renameSync(temporary, automationStatusFile);
+  } catch {
+    // The original download result remains authoritative if the marker cannot
+    // be written.
+  }
+}
 
 function prepareWorkProfile() {
   if (!fs.existsSync(profile)) throw new Error(`Shopee session was not found: ${profile}`);
@@ -254,7 +271,16 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error.stack || error);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    writeAutomationStatus("ok");
+  })
+  .catch(error => {
+    const message = String(error?.message || error || "");
+    writeAutomationStatus(
+      "error",
+      /session expired/i.test(message) ? "session_expired" : "download_failed",
+    );
+    console.error(error.stack || error);
+    process.exit(1);
+  });
